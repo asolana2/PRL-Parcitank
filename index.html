@@ -220,7 +220,26 @@ td.marca{width:1.5rem;}
 
 <main id="contenido" style="display:none"></main>
 
-<script src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js"></script>
+<script>
+/* Carga de la librería MSAL de Microsoft con rutas alternativas */
+(function(){
+  const rutas = [
+    "https://alcdn.msauth.net/browser/2.38.1/js/msal-browser.min.js",
+    "https://alcdn.msftauth.net/browser/2.38.1/js/msal-browser.min.js",
+    "https://alcdn.msauth.net/browser/2.32.2/js/msal-browser.min.js",
+    "https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.1/lib/msal-browser.min.js"
+  ];
+  let i = 0;
+  function intentar(){
+    if(i >= rutas.length){ window.MSAL_ERROR = "No se ha podido cargar la librería de inicio de sesión de Microsoft (¿red bloqueando alcdn.msauth.net?)."; return; }
+    const sc = document.createElement("script"); sc.src = rutas[i++];
+    sc.onload = function(){ if(!window.msal) intentar(); };
+    sc.onerror = intentar;
+    document.head.appendChild(sc);
+  }
+  intentar();
+})();
+</script>
 <script>
 "use strict";
 /* ============================================================
@@ -387,6 +406,7 @@ async function conectarM365(){
   const err = $("#error-m365"); err.textContent = "";
   try{
     if(!esWeb) throw new Error("El inicio de sesión de Microsoft solo funciona con la app publicada en una dirección https (no abierta desde el disco).");
+    if(!window.msal) throw new Error(window.MSAL_ERROR || "La librería de Microsoft aún se está cargando; espera un segundo y vuelve a pulsar.");
     const msalApp = new msal.PublicClientApplication({
       auth: { clientId: M365.clientId, authority: `https://login.microsoftonline.com/${M365.tenantId}`, redirectUri: location.origin + location.pathname },
       cache: { cacheLocation: "localStorage" }
