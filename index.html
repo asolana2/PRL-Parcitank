@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Formaciones PRL — Parcitank</title>
+<style>
+:root{
+  --paper:#F4F4F1; --panel:#FFFFFF; --ink:#20242A; --muted:#69707A;
+  --brand:#1F4E78; --brand-ink:#FFFFFF; --line:#DCDFD9;
+  --rojo:#B3261E; --rojo-bg:#F9DEDC;
+  --amarillo:#8A6D00; --amarillo-bg:#F7EBB2;
+  --naranja:#B4600F; --naranja-bg:#FBE3C7;
+  --verde:#1E6E41; --verde-bg:#D9EEDF;
+  --azul:#3B5FA3; --gris:#AEB4AC;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+html{font-size:16px;}
+body{
+  font-family:"Segoe UI", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  background:var(--paper); color:var(--ink); line-height:1.45;
+}
+/* ---------- cabecera ---------- */
+header{
+  background:var(--brand); color:var(--brand-ink);
+  padding:.65rem 1.1rem; display:flex; align-items:center; gap:1rem; flex-wrap:wrap;
+}
+header h1{font-size:1.05rem; font-weight:600; letter-spacing:.01em;}
+header .fileinfo{font-size:.8rem; opacity:.85; flex:1; min-width:12rem;}
+header button{
+  background:transparent; color:var(--brand-ink); border:1px solid rgba(255,255,255,.5);
+  padding:.3rem .7rem; font:inherit; font-size:.8rem; cursor:pointer; border-radius:3px;
+}
+header button:hover{background:rgba(255,255,255,.12);}
+/* ---------- portada de carga ---------- */
+#dropzone{
+  max-width:34rem; margin:12vh auto; background:var(--panel);
+  border:2px dashed var(--line); padding:3rem 2rem; text-align:center; border-radius:6px;
+}
+#dropzone.arrastrando{border-color:var(--brand); background:#EEF3F8;}
+#dropzone h2{font-size:1.2rem; font-weight:600; margin-bottom:.6rem; color:var(--brand);}
+#dropzone p{color:var(--muted); font-size:.92rem; margin-bottom:1.2rem;}
+#dropzone .boton{
+  display:inline-block; background:var(--brand); color:#fff; padding:.55rem 1.3rem;
+  border-radius:4px; cursor:pointer; font-size:.95rem; border:none; font:inherit;
+}
+#dropzone .error{color:var(--rojo); margin-top:1rem; font-size:.9rem;}
+/* ---------- navegación ---------- */
+nav{
+  background:var(--panel); border-bottom:1px solid var(--line);
+  display:flex; gap:0; padding:0 1.1rem; align-items:center; flex-wrap:wrap;
+}
+nav .tab{
+  padding:.6rem .95rem; cursor:pointer; font-size:.92rem; color:var(--muted);
+  border-bottom:3px solid transparent; background:none; border-top:none; border-left:none; border-right:none; font:inherit;
+}
+nav .tab.activa{color:var(--brand); border-bottom-color:var(--brand); font-weight:600;}
+nav .buscador{margin-left:auto; padding:.35rem 0;}
+nav .tab.principal{font-weight:700; color:var(--ink); background:#EEF1EC; border-radius:5px 5px 0 0; margin-right:.2rem;}
+nav .tab.principal.activa{background:var(--brand); color:#fff; border-bottom-color:var(--brand);}
+nav .sep{width:1px; height:1.5rem; background:var(--line); margin:0 .5rem; align-self:center;}
+nav .buscador input{
+  font:inherit; font-size:.9rem; padding:.35rem .6rem; border:1px solid var(--line);
+  border-radius:4px; width:16rem; background:#FBFBFA;
+}
+main{max-width:72rem; margin:0 auto; padding:1.1rem;}
+/* ---------- panel principal (lista) ---------- */
+.kpis{display:flex; gap:.8rem; margin-bottom:.9rem; flex-wrap:wrap; align-items:stretch;}
+.kpi{flex:1; min-width:11rem; border-radius:6px; padding:.7rem 1rem; display:flex; align-items:baseline; gap:.6rem;}
+.kpi b{font-size:2.2rem; line-height:1; font-variant-numeric:tabular-nums;}
+.kpi span{font-size:.85rem;}
+.kpi.r{background:var(--rojo-bg); color:var(--rojo);} .kpi.f{background:#F9E6DC; color:#8C3B12;} .kpi.v{background:var(--verde-bg); color:var(--verde);}
+.kpi.chk{background:transparent; color:var(--muted); flex:0; min-width:auto; align-items:center; font-size:.8rem;}
+table.lista tr.op{cursor:pointer;}
+table.lista tr.op td:first-child{border-left:6px solid transparent;}
+table.lista tr.op.mal td:first-child{border-left-color:var(--rojo);}
+table.lista tr.op.ok td:first-child{border-left-color:var(--verde);}
+table.lista tr.op.mal td{background:#FDF3F2;} table.lista tr.op.ok td{background:#F3FAF5;}
+table.lista tr.op:hover td{filter:brightness(.97);}
+table.lista tr.op.abierto td{background:#FFF8E1;}
+table.lista .n{display:inline-block; background:var(--rojo); color:#fff; font-size:.74rem; font-weight:700; padding:.05rem .5rem; border-radius:10px; margin-left:.4rem;}
+table.lista tr.detalle td{background:#FFFBEA; border-left:6px solid #E0C36B; padding:.55rem .9rem .7rem 1.2rem;}
+.porque{font-size:.84rem; display:flex; flex-wrap:wrap; gap:.35rem .6rem; align-items:center;}
+.porque + .porque{margin-top:.4rem;}
+.acciones{margin-top:.45rem; font-size:.8rem;}
+/* ---------- filtros ---------- */
+.filtros{display:flex; flex-wrap:wrap; gap:.5rem .8rem; align-items:end; background:var(--panel); border:1px solid var(--line); border-radius:5px; padding:.6rem .9rem; margin-bottom:1rem;}
+.filtros label{display:flex; flex-direction:column; font-size:.72rem; color:var(--muted); gap:.15rem;}
+.filtros select, .filtros input{font:inherit; font-size:.85rem; padding:.28rem .45rem; border:1px solid var(--line); border-radius:4px; background:#fff; min-width:9rem;}
+.filtros input[type=date]{min-width:8.5rem;}
+th.ord{cursor:pointer; user-select:none; white-space:nowrap;}
+th.ord:hover{color:var(--brand);}
+th.ord .flecha{font-size:.7rem; margin-left:.2rem; color:var(--brand);}
+/* ---------- andón (semáforo) ---------- */
+.andon{display:flex; width:100%; border-radius:5px; overflow:hidden; border:1px solid var(--line); min-height:4.4rem;}
+.andon button{
+  flex:1; border:none; cursor:pointer; font:inherit; padding:.6rem .4rem;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.05rem;
+}
+.andon .num{font-size:1.7rem; font-weight:650; font-variant-numeric:tabular-nums; line-height:1.1;}
+.andon .lbl{font-size:.74rem; letter-spacing:.01em;}
+.andon .a-rojo{background:var(--rojo-bg); color:var(--rojo);}
+.andon .a-amarillo{background:var(--amarillo-bg); color:var(--amarillo);}
+.andon .a-naranja{background:var(--naranja-bg); color:var(--naranja);}
+.andon .a-verde{background:var(--verde-bg); color:var(--verde);}
+.andon .a-todos{background:#E9EBE7; color:var(--ink);}
+.andon button.sel{outline:3px solid var(--ink); outline-offset:-3px;}
+.subnota{color:var(--muted); font-size:.8rem; margin:.5rem 0 1rem;}
+.subnota label{cursor:pointer; user-select:none;}
+/* ---------- listas y tablas ---------- */
+.bloque{background:var(--panel); border:1px solid var(--line); border-radius:5px; margin-bottom:1rem; overflow:hidden;}
+.bloque h3{
+  font-size:.95rem; font-weight:600; padding:.55rem .9rem; border-bottom:1px solid var(--line);
+  background:#FAFAF8; display:flex; align-items:center; gap:.6rem;
+}
+.bloque h3 .cnt{color:var(--muted); font-weight:400; font-size:.85rem;}
+.bloque h3 .der{margin-left:auto; display:flex; gap:.5rem;}
+table{width:100%; border-collapse:collapse; font-size:.88rem;}
+th{
+  text-align:left; padding:.45rem .9rem; color:var(--muted); font-weight:600; font-size:.78rem;
+  border-bottom:1px solid var(--line); background:#FAFAF8;
+}
+td{padding:.42rem .9rem; border-bottom:1px solid #EEEFEB; vertical-align:top;}
+tr:last-child td{border-bottom:none;}
+tr.fila-persona{cursor:pointer;}
+tr.fila-persona:hover td{background:#F3F6FA;}
+td.num, th.num{text-align:right; font-variant-numeric:tabular-nums;}
+.mesgrupo td.mes{
+  background:#EFF1ED; font-weight:600; font-size:.8rem; color:var(--ink); padding:.3rem .9rem;
+}
+/* ---------- chips de estado ---------- */
+.chip{
+  display:inline-block; padding:.08rem .5rem; border-radius:3px; font-size:.78rem; font-weight:600;
+  white-space:nowrap;
+}
+.c-caducada{background:var(--rojo-bg); color:var(--rojo);}
+.c-pendiente{background:var(--rojo-bg); color:var(--rojo);}
+.c-noasistio{background:var(--rojo-bg); color:var(--rojo); border:1px dashed var(--rojo);}
+.c-menos1{background:var(--amarillo-bg); color:var(--amarillo);}
+.c-1a2{background:var(--naranja-bg); color:var(--naranja);}
+.c-ok{background:var(--verde-bg); color:var(--verde);}
+.c-opc{background:#E4E9F4; color:var(--azul);}
+.c-na{color:var(--gris); font-weight:400;}
+.c-baja{background:#E8E8E6; color:#5A5F58;}
+.fechacad{color:var(--muted); font-size:.8rem;}
+/* ---------- ficha persona ---------- */
+.ficha-cab{display:flex; align-items:baseline; gap:1rem; flex-wrap:wrap; padding:.9rem; }
+.ficha-cab h2{font-size:1.25rem; font-weight:650;}
+.ficha-datos{color:var(--muted); font-size:.88rem;}
+.obs{padding:.6rem .9rem; background:#FBF8EC; border-top:1px solid var(--line); font-size:.85rem;}
+.volver{color:var(--brand); cursor:pointer; font-size:.85rem; background:none; border:none; font:inherit; padding:0;}
+.btn2{
+  background:#fff; border:1px solid var(--line); border-radius:4px; padding:.28rem .7rem;
+  font:inherit; font-size:.8rem; cursor:pointer; color:var(--ink);
+}
+.btn2:hover{border-color:var(--brand); color:var(--brand);}
+select{font:inherit; font-size:.85rem; padding:.28rem .5rem; border:1px solid var(--line); border-radius:4px; background:#fff;}
+.vacio{padding:1.2rem .9rem; color:var(--muted); font-size:.9rem;}
+/* ---------- edición ---------- */
+.toast{position:fixed; bottom:1.2rem; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:.55rem 1rem; border-radius:5px; font-size:.88rem; z-index:9; box-shadow:0 4px 14px rgba(0,0,0,.25);}
+.editor{background:#FBFBF7; border-top:1px solid var(--line); padding:.7rem .9rem; display:flex; flex-wrap:wrap; gap:.5rem .8rem; align-items:end;}
+.editor label{display:flex; flex-direction:column; font-size:.72rem; color:var(--muted); gap:.15rem;}
+.editor input, .editor select{font:inherit; font-size:.85rem; padding:.3rem .5rem; border:1px solid var(--line); border-radius:4px; background:#fff; min-width:9rem;}
+.editor .primario{background:var(--brand); color:#fff; border:none; border-radius:4px; padding:.42rem .9rem; font:inherit; font-size:.85rem; cursor:pointer;}
+.editor .primario:disabled{opacity:.5; cursor:default;}
+td.marca{width:1.5rem;}
+/* ---------- impresión ---------- */
+@media print{
+  header, nav, .no-imprimir, .andon, .subnota{display:none !important;}
+  body{background:#fff;}
+  main{max-width:none; padding:0;}
+  .bloque{border:none; margin:0;}
+  .bloque h3{background:#fff;}
+  td, th{padding:.25rem .4rem;}
+  .solo-imprimir{display:block !important;}
+}
+.solo-imprimir{display:none; font-size:.8rem; color:var(--muted); margin-bottom:.6rem;}
+@media (max-width:720px){
+  nav .buscador input{width:100%;}
+  .andon{flex-wrap:wrap;}
+  .andon button{min-width:45%;}
+}
+</style>
+</head>
+<body>
+
+<header id="cabecera" style="display:none">
+  <h1>Formaciones PRL · Parcitank</h1>
+  <span class="fileinfo" id="fileinfo"></span>
+  <button id="btn-recargar">Cargar otro archivo</button>
+  <button id="btn-refrescar" style="display:none">Actualizar datos</button>
+  <button id="btn-imprimir">Imprimir vista</button>
+</header>
+
+<div id="dropzone">
+  <h2>Formaciones PRL — Parcitank</h2>
+  <div id="modo-m365" style="display:none; margin-bottom:1.4rem; padding-bottom:1.2rem; border-bottom:1px solid var(--line)">
+    <p>Conectar con el maestro de SharePoint (lee y <strong>escribe</strong> directamente en el Excel).</p>
+    <div id="cfg-enlace" style="display:none; margin-bottom:.6rem">
+      <input type="text" id="enlace-maestro" placeholder="Pega aquí el enlace del Excel maestro (Copiar vínculo en Teams/SharePoint)" style="width:100%; font:inherit; font-size:.85rem; padding:.4rem .6rem; border:1px solid var(--line); border-radius:4px">
+    </div>
+    <button class="boton" id="btn-m365">Iniciar sesión con Microsoft</button>
+    <div class="error" id="error-m365"></div>
+  </div>
+  <p>O arrastra aquí el Excel maestro (<strong>Formaciones_MAESTRO.xlsx</strong>)<br>o elígelo con el botón — modo solo lectura.</p>
+  <button class="boton" id="btn-elegir" style="background:#6A7076">Elegir archivo</button>
+  <input type="file" id="fichero" accept=".xlsx" style="display:none">
+  <div class="error" id="error-carga"></div>
+</div>
+
+<nav id="navegacion" style="display:none">
+  <button class="tab principal activa" data-vista="operarios">Panel principal</button>
+  <span class="sep"></span>
+  <button class="tab" data-vista="personas">Trabajadores</button>
+  <button class="tab" data-vista="panel">Caducidad formaciones</button>
+  <button class="tab" data-vista="formaciones">Cursos</button>
+  <button class="tab" data-vista="aptos">Aptos médicos</button>
+  <span class="buscador"><input type="search" id="buscar" placeholder="Buscar persona (sin acentos ni nada)…"></span>
+</nav>
+
+<main id="contenido" style="display:none"></main>
+
+<script src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js"></script>
+<script>
+"use strict";
+/* ============================================================
+   CONFIGURACIÓN MICROSOFT 365 (registro de aplicación en Entra ID)
+   ============================================================ */
+const M365 = {
+  clientId: "900465de-2dc4-4815-8568-6a2ad588f2f5",
+  tenantId: "7a8b0360-aca4-4d3e-af23-c25417e1b099",
+  scopes: ["User.Read","Files.ReadWrite.All"]
+};
+/* ============================================================
+   LECTOR DE XLSX SIN LIBRERÍAS
+   Un .xlsx es un ZIP con XML dentro. Se localiza el directorio
+   central del ZIP, se descomprime cada entrada necesaria con
+   DecompressionStream('deflate-raw') y se parsea el XML.
+   ============================================================ */
+async function leerXlsx(arrayBuffer){
+  const bytes = new Uint8Array(arrayBuffer);
+  const dv = new DataView(arrayBuffer);
+  // EOCD: firma 0x06054b50, buscar desde el final
+  let eocd = -1;
+  for(let i = bytes.length - 22; i >= Math.max(0, bytes.length - 66000); i--){
+    if(dv.getUint32(i, true) === 0x06054b50){ eocd = i; break; }
+  }
+  if(eocd < 0) throw new Error("No parece un archivo .xlsx válido");
+  const nEntradas = dv.getUint16(eocd + 10, true);
+  let off = dv.getUint32(eocd + 16, true);
+  const entradas = {};
+  for(let k = 0; k < nEntradas; k++){
+    if(dv.getUint32(off, true) !== 0x02014b50) throw new Error("Directorio ZIP corrupto");
+    const metodo = dv.getUint16(off + 10, true);
+    const tamComp = dv.getUint32(off + 20, true);
+    const nomLen = dv.getUint16(off + 28, true);
+    const extraLen = dv.getUint16(off + 30, true);
+    const comLen = dv.getUint16(off + 32, true);
+    const offLocal = dv.getUint32(off + 42, true);
+    const nombre = new TextDecoder().decode(bytes.subarray(off + 46, off + 46 + nomLen));
+    entradas[nombre] = { metodo, tamComp, offLocal };
+    off += 46 + nomLen + extraLen + comLen;
+  }
+  async function sacar(nombre){
+    const e = entradas[nombre];
+    if(!e) return null;
+    // cabecera local: 30 bytes + nombre + extra (leer longitudes locales)
+    const nomLen = dv.getUint16(e.offLocal + 26, true);
+    const extraLen = dv.getUint16(e.offLocal + 28, true);
+    const ini = e.offLocal + 30 + nomLen + extraLen;
+    const datos = bytes.subarray(ini, ini + e.tamComp);
+    if(e.metodo === 0) return new TextDecoder().decode(datos);
+    if(e.metodo === 8){
+      const ds = new DecompressionStream("deflate-raw");
+      const stream = new Blob([datos]).stream().pipeThrough(ds);
+      const buf = await new Response(stream).arrayBuffer();
+      return new TextDecoder().decode(buf);
+    }
+    throw new Error("Método de compresión no soportado");
+  }
+  return { sacar };
+}
+
+function parsearXml(texto){
+  return new DOMParser().parseFromString(texto, "application/xml");
+}
+
+/* Convierte serial de Excel a fecha JS (época 1899-12-30) */
+function serialAFecha(n){
+  return new Date(Date.UTC(1899, 11, 30) + 0); // base
+}
+function fechaDeSerial(n){
+  const ms = Math.round((n - 25569) * 86400 * 1000); // 25569 = días hasta 1970-01-01
+  return new Date(ms);
+}
+
+/* Lee una hoja: devuelve matriz [fila][col] de valores crudos */
+function leerHoja(xmlTexto, sharedStrings){
+  const doc = parsearXml(xmlTexto);
+  const filas = [];
+  const colALetra = /^([A-Z]+)(\d+)$/;
+  doc.querySelectorAll("sheetData > row").forEach(rowEl => {
+    const r = parseInt(rowEl.getAttribute("r"), 10);
+    const fila = [];
+    rowEl.querySelectorAll("c").forEach(c => {
+      const ref = c.getAttribute("r") || "";
+      const m = ref.match(colALetra);
+      let ci = 0;
+      if(m){
+        for(const ch of m[1]) ci = ci * 26 + (ch.charCodeAt(0) - 64);
+        ci -= 1;
+      } else { ci = fila.length; }
+      const t = c.getAttribute("t");
+      const vEl = c.querySelector("v");
+      const isEl = c.querySelector("is");
+      let val = null;
+      if(t === "s" && vEl){ val = sharedStrings[parseInt(vEl.textContent,10)] ?? ""; }
+      else if(t === "str" && vEl){ val = vEl.textContent; }
+      else if(t === "inlineStr" && isEl){ val = isEl.textContent; }
+      else if(vEl){ val = parseFloat(vEl.textContent); }
+      fila[ci] = val;
+    });
+    filas[r - 1] = fila;
+  });
+  return filas;
+}
+
+async function cargarMaestro(arrayBuffer){
+  const zip = await leerXlsx(arrayBuffer);
+  // shared strings
+  const ssXml = await zip.sacar("xl/sharedStrings.xml");
+  const shared = [];
+  if(ssXml){
+    parsearXml(ssXml).querySelectorAll("si").forEach(si => {
+      let s = "";
+      si.querySelectorAll("t").forEach(t => s += t.textContent);
+      shared.push(s);
+    });
+  }
+  // mapa nombre de hoja -> archivo
+  const wbXml = parsearXml(await zip.sacar("xl/workbook.xml"));
+  const relsXml = parsearXml(await zip.sacar("xl/_rels/workbook.xml.rels"));
+  const rels = {};
+  relsXml.querySelectorAll("Relationship").forEach(r => rels[r.getAttribute("Id")] = r.getAttribute("Target"));
+  const hojas = {};
+  wbXml.querySelectorAll("sheet").forEach(s => {
+    const rid = s.getAttribute("r:id") || s.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","id");
+    let destino = rels[rid] || "";
+    if(destino && !destino.startsWith("xl/")) destino = "xl/" + destino.replace(/^\//,"");
+    hojas[s.getAttribute("name")] = destino;
+  });
+  async function hoja(nombre){
+    const ruta = hojas[nombre];
+    if(!ruta) return null;
+    const xml = await zip.sacar(ruta);
+    if(!xml) return null;
+    return leerHoja(xml, shared);
+  }
+  return { hoja, nombresHojas: Object.keys(hojas) };
+}
+
+/* ============================================================
+   CONEXIÓN CON MICROSOFT GRAPH (modo conectado)
+   ============================================================ */
+let GRAPH = null;   // { msal, cuenta, driveId, itemId }
+const esWeb = location.protocol === "https:" || location.hostname === "localhost";
+async function tokenGraph(){
+  const req = { scopes: M365.scopes, account: GRAPH.cuenta };
+  try { return (await GRAPH.msal.acquireTokenSilent(req)).accessToken; }
+  catch(e){ return (await GRAPH.msal.acquireTokenPopup(req)).accessToken; }
+}
+async function graph(path, opts={}){
+  const tok = await tokenGraph();
+  const r = await fetch("https://graph.microsoft.com/v1.0" + path, {
+    method: opts.method || "GET",
+    headers: Object.assign({ "Authorization": "Bearer " + tok, "Content-Type": "application/json" }, opts.headers || {}),
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  if(!r.ok){ let t = ""; try{ t = (await r.json()).error?.message || ""; }catch(_){} throw new Error(`Graph ${r.status}: ${t}`); }
+  return r.status === 204 ? null : r.json();
+}
+function shareId(url){
+  const b = btoa(unescape(encodeURIComponent(url))).replace(/=+$/,"").replace(/\//g,"_").replace(/\+/g,"-");
+  return "u!" + b;
+}
+async function conectarM365(){
+  const err = $("#error-m365"); err.textContent = "";
+  try{
+    if(!esWeb) throw new Error("El inicio de sesión de Microsoft solo funciona con la app publicada en una dirección https (no abierta desde el disco).");
+    const msalApp = new msal.PublicClientApplication({
+      auth: { clientId: M365.clientId, authority: `https://login.microsoftonline.com/${M365.tenantId}`, redirectUri: location.origin + location.pathname },
+      cache: { cacheLocation: "localStorage" }
+    });
+    let cuenta = msalApp.getAllAccounts()[0];
+    if(!cuenta){ const res = await msalApp.loginPopup({ scopes: M365.scopes }); cuenta = res.account; }
+    GRAPH = { msal: msalApp, cuenta };
+    let enlace = localStorage.getItem("prl.enlaceMaestro") || $("#enlace-maestro").value.trim();
+    if(!enlace){ $("#cfg-enlace").style.display = "block"; throw new Error("Pega el enlace del Excel maestro y vuelve a pulsar."); }
+    const item = await graph(`/shares/${shareId(enlace)}/driveItem?$select=id,name,parentReference`);
+    GRAPH.driveId = item.parentReference.driveId; GRAPH.itemId = item.id; GRAPH.nombre = item.name;
+    localStorage.setItem("prl.enlaceMaestro", enlace);
+    await cargarDesdeGraph();
+  }catch(e){ err.textContent = e.message; if(/enlace/i.test(e.message)) $("#cfg-enlace").style.display = "block"; }
+}
+const WB = () => `/drives/${GRAPH.driveId}/items/${GRAPH.itemId}/workbook`;
+async function hojaGraph(nombre){
+  const r = await graph(`${WB()}/worksheets('${encodeURIComponent(nombre)}')/usedRange(valuesOnly=true)?$select=values,address`);
+  return r.values.map(f => f.map(v => (v === "" ? null : v)));
+}
+async function cargarDesdeGraph(){
+  const plantilla = await hojaGraph("Plantilla");
+  const catalogo = await hojaGraph("Catálogo");
+  const oblig = await hojaGraph("Obligatorios");
+  construirModelo(plantilla, catalogo, oblig, GRAPH.nombre, new Date());
+  DATOS.conectado = true;
+  $("#dropzone").style.display = "none"; $("#cabecera").style.display = "flex"; $("#navegacion").style.display = "flex"; $("#contenido").style.display = "block";
+  $("#btn-refrescar").style.display = "inline-block";
+  $("#fileinfo").textContent = `${GRAPH.nombre} · conectado a SharePoint · ${DATOS.personas.length} personas · ${GRAPH.cuenta.username}`;
+  if(!VISTA) VISTA = "operarios";
+  marcarTab(); render();
+}
+/* --- escritura --- */
+function serialDeFecha(iso){ const d = new Date(iso + "T00:00:00Z"); return Math.round(d.getTime()/86400000) + 25569; }
+async function escribirCeldas(cambios){ // [{fila, col, valor, formato}]
+  if(!GRAPH) throw new Error("No conectado");
+  const ses = await graph(`${WB()}/createSession`, { method:"POST", body:{ persistChanges:true } });
+  const h = { "workbook-session-id": ses.id };
+  for(const c of cambios){
+    const addr = colLetra(c.col) + c.fila;
+    const body = { values: [[c.valor]] };
+    if(c.formato) body.numberFormat = [[c.formato]];
+    await graph(`${WB()}/worksheets('Plantilla')/range(address='${addr}')`, { method:"PATCH", body, headers:h });
+  }
+  try{ await graph(`${WB()}/closeSession`, { method:"POST", headers:h, body:{} }); }catch(_){}
+  await cargarDesdeGraph();
+  aviso(`Guardado en el Excel: ${cambios.length} celda${cambios.length===1?"":"s"}.`);
+}
+function colLetra(i){ let n = i + 1, s = ""; while(n > 0){ const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
+function aviso(txt){ const d = document.createElement("div"); d.className = "toast"; d.textContent = txt; document.body.appendChild(d); setTimeout(()=>d.remove(), 3500); }
+
+/* ============================================================
+   MODELO DE DATOS
+   ============================================================ */
+const sinAcentos = s => (s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+const HOY = new Date(); HOY.setHours(0,0,0,0);
+
+let DATOS = null; // {personas:[], catalogo:{}, formaciones:[], nombreArchivo, fechaArchivo}
+
+function construirModelo(filasPlantilla, filasCatalogo, filasOblig, nombreArchivo, fechaArchivo){
+  const cab = (filasPlantilla[0] || []).map(v => (v==null?"":String(v).trim()));
+  const idx = {};
+  cab.forEach((h,i) => idx[h] = i);
+  const FIJAS = ["APELLIDOS","NOMBRE","SECCIÓN","PUESTO","PERFIL 1","PERFIL 2","ENCARGADO","SITUACIÓN"];
+  const OPCIONALES = ["SECCIÓN"];
+  for(const f of FIJAS) if(!(f in idx) && !OPCIONALES.includes(f)) throw new Error("Falta la columna " + f + " en Plantilla — ¿es el maestro correcto?");
+  const iObs = idx["OBSERVACIONES"];
+  const EXTRA = ["DNI","Nº ALT","FECHA NACIMIENTO","EDAD","ALTA","NISS","TELÉFONO","CORREO","TURNO","PRÁCTICAS","APTO HASTA","CITA RECO","MODO RECO","GESTIONA","VÍA","FECHA UM","FECHA CITA","RESTRICCIONES","RESTRICCIONES/ OBSERVACIONES","RESTRICCIONES/OBSERVACIONES","EMPRESA"];
+  // catálogo
+  const catalogo = {};
+  for(let r = 1; r < filasCatalogo.length; r++){
+    const fila = filasCatalogo[r]; if(!fila || fila[0]==null) continue;
+    catalogo[String(fila[0]).trim()] = Number(fila[1]) || 0;
+  }
+  // obligatorios: fila 1 = perfiles (desde col B), col A = formaciones; valores X / OPCIONAL / DEPENDE
+  const REQ = {}; const ORDEN_PERFIL = {};
+  const cabO = (filasOblig[0] || []).map(v => (v==null?"":String(v).trim().toUpperCase()));
+  cabO.forEach((pf,i) => { if(i>0 && pf){ REQ[pf] = {}; ORDEN_PERFIL[pf] = i; } });
+  for(let r = 1; r < filasOblig.length; r++){
+    const fila = filasOblig[r]; if(!fila || fila[0]==null) continue;
+    const fo = String(fila[0]).trim().toUpperCase();
+    cabO.forEach((pf,i) => {
+      if(i===0 || !pf) return;
+      const v = fila[i]; if(v==null) return;
+      const t = String(v).trim().toUpperCase();
+      if(t==="X") REQ[pf][fo] = "X";
+      else if(t.includes("DEPENDE")) REQ[pf][fo] = "DEP";
+      else if(t.includes("OPCIONAL")) REQ[pf][fo] = "OPC";
+    });
+  }
+  // columnas de formación = cabeceras entre SITUACIÓN y OBSERVACIONES que estén en catálogo (o cualquiera no fija)
+  const formaciones = [];
+  cab.forEach((h,i) => {
+    if(FIJAS.includes(h) || EXTRA.includes(h) || h === "OBSERVACIONES" || h === "") return;
+    formaciones.push({ nombre:h, col:i, validez: (h in catalogo) ? catalogo[h] : 4 });
+  });
+  const personas = [];
+  let ultimaFila = 1;
+  for(let r = 1; r < filasPlantilla.length; r++){
+    const fila = filasPlantilla[r]; if(!fila) continue;
+    const ap = fila[idx["APELLIDOS"]]; if(ap==null || String(ap).trim()==="") continue;
+    ultimaFila = r + 1;
+    const p = {
+      fila: r + 1,
+      apellidos: String(ap).trim(),
+      nombre: String(fila[idx["NOMBRE"]] ?? "").trim(),
+      seccion: String((idx["SECCIÓN"]!=null ? fila[idx["SECCIÓN"]] : fila[idx["PUESTO"]]) ?? "").trim(),
+      puesto: String(fila[idx["PUESTO"]] ?? "").trim(),
+      perfil1: String(fila[idx["PERFIL 1"]] ?? "").trim().toUpperCase(),
+      perfil2: String(fila[idx["PERFIL 2"]] ?? "").trim().toUpperCase(),
+      encargado: String(fila[idx["ENCARGADO"]] ?? "").trim(),
+      baja: String(fila[idx["SITUACIÓN"]] ?? "").trim().toUpperCase().includes("BAJA"),
+      obs: iObs!=null ? String(fila[iObs] ?? "").trim() : "",
+      celdas: {}
+    };
+    const txt = k => idx[k]!=null && fila[idx[k]]!=null ? String(fila[idx[k]]).trim() : "";
+    const fecha = k => idx[k]!=null && typeof fila[idx[k]]==="number" ? fechaDeSerial(fila[idx[k]]) : null;
+    p.dni = txt("DNI"); p.niss = txt("NISS"); p.empresa = txt("EMPRESA").toUpperCase(); p.telefono = txt("TELÉFONO"); p.correo = txt("CORREO"); p.turno = txt("TURNO"); p.practicas = txt("PRÁCTICAS");
+    p.nacimiento = fecha("FECHA NACIMIENTO"); p.alta = fecha("ALTA");
+    p.edad = p.nacimiento ? Math.floor((HOY - p.nacimiento) / (365.25*86400000)) : null;
+    p.apto = fecha("APTO HASTA"); p.aptoNA = txt("APTO HASTA").toUpperCase()==="NA";
+    p.fechaUM = fecha("FECHA CITA") || fecha("FECHA UM") || fecha("CITA RECO"); p.gestiona = (txt("GESTIONA") || txt("MODO RECO")).toUpperCase(); p.via = txt("VÍA").toUpperCase(); p.restricciones = txt("RESTRICCIONES") || txt("RESTRICCIONES/ OBSERVACIONES") || txt("RESTRICCIONES/OBSERVACIONES");
+    p.aptoEstado = p.aptoNA ? "na" : (!p.apto ? "sinapto" : (p.apto < HOY ? "vencido" : ((p.apto - HOY)/86400000 <= 60 ? "pronto" : "ok")));
+    p.clave = sinAcentos(p.apellidos + " " + p.nombre).toUpperCase();
+    p.claveNombre = sinAcentos(p.nombre + " " + p.apellidos).toUpperCase();
+    p.nombreCompleto = `${p.nombre} ${p.apellidos}`;
+    const need = {};
+    for(const pf of [p.perfil1, p.perfil2]){
+      if(!pf || !REQ[pf]) continue;
+      for(const [fo,v] of Object.entries(REQ[pf])){ if(need[fo]!=="X") need[fo] = (v==="X") ? "X" : (need[fo] || v); }
+    }
+    for(const f of formaciones){
+      const v = fila[f.col];
+      p.celdas[f.nombre] = clasificar(v, f.validez, need[f.nombre.toUpperCase()]);
+    }
+    p.ordenPerfil = ORDEN_PERFIL[p.perfil1] ?? 999;
+    personas.push(p);
+  }
+  personas.sort((a,b) => a.claveNombre < b.claveNombre ? -1 : 1);
+  DATOS = { personas, formaciones, nombreArchivo, fechaArchivo, idx, ultimaFila, perfiles: Object.keys(REQ) };
+}
+
+/* clasifica una celda -> {tipo, fecha?, caduca?, dias?}
+   tipos: na, opc, pendiente, noasistio, ok, menos1, entre1y2, caducada, hecha-sincad */
+function clasificar(v, validez, req){
+  if(v == null || v === ""){
+    if(req === "X") return { tipo:"pendiente" };
+    if(req === "OPC" || req === "DEP") return { tipo:"opc" };
+    return { tipo:"na" };
+  }
+  if(typeof v === "string"){
+    const s = v.trim().toUpperCase();
+    if(s === "NA") return { tipo:"na" };
+    if(s === "OPC") return { tipo:"opc" };
+    if(s === "PTE") return { tipo:"pendiente" };
+    if(s === "NP") return { tipo:"noasistio" };
+    if(s === "OK") return { tipo:"okfijo" };
+    return { tipo:"na" };
+  }
+  // número = fecha serial
+  const fecha = fechaDeSerial(v);
+  if(!validez) return { tipo:"okfijo", fecha };
+  const caduca = new Date(fecha); caduca.setUTCFullYear(caduca.getUTCFullYear() + validez);
+  const dias = Math.floor((caduca - HOY) / 86400000);
+  let tipo = "ok";
+  if(dias < 0) tipo = "caducada";
+  else if(dias <= 365) tipo = "menos1";
+  else if(dias <= 730) tipo = "entre1y2";
+  return { tipo, fecha, caduca, dias };
+}
+
+const fmtFecha = d => d ? d.toLocaleDateString("es-ES", {day:"2-digit",month:"2-digit",year:"numeric",timeZone:"UTC"}) : "";
+const fmtMes = d => d.toLocaleDateString("es-ES", {month:"long", year:"numeric", timeZone:"UTC"});
+
+function chipApto(p){
+  switch(p.aptoEstado){
+    case "na": return `<span class="c-na">no realiza reconocimiento</span>`;
+    case "vencido": return `<span class="chip c-caducada">Vencido</span> <span class="fechacad">${fmtFecha(p.apto)}</span>`;
+    case "sinapto": return `<span class="chip c-pendiente">Sin apto</span>`;
+    case "pronto": return `<span class="chip c-menos1">Vence ${fmtFecha(p.apto)}</span>`;
+    default: return `<span class="chip c-ok">Vigente</span> <span class="fechacad">hasta ${fmtFecha(p.apto)}</span>`;
+  }
+}
+function chip(c){
+  switch(c.tipo){
+    case "caducada": return `<span class="chip c-caducada">Caducada</span> <span class="fechacad">desde ${fmtFecha(c.caduca)}</span>`;
+    case "pendiente": return `<span class="chip c-pendiente">Pendiente</span>`;
+    case "noasistio": return `<span class="chip c-noasistio">No se presentó</span>`;
+    case "menos1": return `<span class="chip c-menos1">Caduca ${fmtFecha(c.caduca)}</span>`;
+    case "entre1y2": return `<span class="chip c-1a2">Caduca ${fmtFecha(c.caduca)}</span>`;
+    case "ok": return `<span class="chip c-ok">Vigente</span> <span class="fechacad">hasta ${fmtFecha(c.caduca)}</span>`;
+    case "okfijo": return `<span class="chip c-ok">Hecha</span> <span class="fechacad">${c.fecha ? fmtFecha(c.fecha)+" · no caduca" : "sin fecha registrada"}</span>`;
+    case "opc": return `<span class="chip c-opc">Opcional</span>`;
+    default: return `<span class="c-na">no aplica</span>`;
+  }
+}
+
+/* ============================================================
+   VISTAS
+   ============================================================ */
+const $ = sel => document.querySelector(sel);
+let VISTA = "operarios";
+let OP_ABIERTO = null;
+let FILTRO_ANDON = null;   // caducada | menos1 | pendientes | entre1y2
+let INCLUIR_BAJAS = false;
+let PERSONA_ACTUAL = null;
+let FORMACION_ACTUAL = "";
+const FILTROS = { seccion:"", encargado:"", formacion:"", desde:"", hasta:"", gestiona:"", um:"", via:"", empresa:"", turno:"" };
+const ORDEN = { panel:{k:"caduca",d:1}, personas:{k:"nombre",d:1}, formaciones:{k:"nombre",d:1}, detalle:{k:"caduca",d:1}, aptos:{k:"fecha",d:1} };
+function pasaPersona(p){
+  if(FILTROS.seccion && p.seccion !== FILTROS.seccion) return false;
+  if(FILTROS.encargado && p.encargado !== FILTROS.encargado) return false;
+  if(FILTROS.empresa && p.empresa !== FILTROS.empresa) return false;
+  if(FILTROS.turno && p.turno !== FILTROS.turno) return false;
+  if(FILTROS.gestiona && p.gestiona !== FILTROS.gestiona) return false;
+  if(FILTROS.via && p.via !== FILTROS.via) return false;
+  if(FILTROS.um && (!p.fechaUM || p.fechaUM.toISOString().slice(0,10) !== FILTROS.um)) return false;
+  return true;
+}
+function pasaFecha(x){
+  if(!FILTROS.desde && !FILTROS.hasta) return true;
+  if(!x.caduca) return false;
+  const d = x.caduca.toISOString().slice(0,10);
+  if(FILTROS.desde && d < FILTROS.desde) return false;
+  if(FILTROS.hasta && d > FILTROS.hasta) return false;
+  return true;
+}
+function barraFiltros(conFormacion, conApto){
+  const secs = [...new Set(DATOS.personas.map(p=>p.seccion))].sort();
+  const encs = [...new Set(DATOS.personas.map(p=>p.encargado).filter(Boolean))].sort();
+  const opt = (arr, sel) => `<option value="">— todas —</option>` + arr.map(v=>`<option ${v===sel?"selected":""}>${v}</option>`).join("");
+  return `<div class="filtros no-imprimir">
+    <label>Puesto<select id="f-seccion">${opt(secs, FILTROS.seccion)}</select></label>
+    <label>Encargado<select id="f-encargado">${opt(encs, FILTROS.encargado)}</select></label>
+    <label>Turno<select id="f-turno">${opt([...new Set(DATOS.personas.map(p=>p.turno).filter(Boolean))].sort(), FILTROS.turno)}</select></label>
+    ${[...new Set(DATOS.personas.map(p=>p.empresa).filter(Boolean))].length>1 ? `<label>Empresa<select id="f-empresa">${opt([...new Set(DATOS.personas.map(p=>p.empresa).filter(Boolean))].sort(), FILTROS.empresa)}</select></label>` : ""}
+    ${conFormacion ? `<label>Formación<select id="f-formacion">${opt(DATOS.formaciones.map(f=>f.nombre), FILTROS.formacion)}</select></label>` : ""}
+    ${conApto ? `<label>Gestiona<select id="f-gestiona"><option value="">— ambos —</option><option ${FILTROS.gestiona==="ALEJANDRO"?"selected":""}>ALEJANDRO</option><option ${FILTROS.gestiona==="ENCARNA"?"selected":""}>ENCARNA</option></select></label>
+    <label>Vía<select id="f-via"><option value="">— todas —</option>${["UM","QUIRÓN","SEPREVILLA"].map(v=>`<option ${v===FILTROS.via?"selected":""}>${v}</option>`).join("")}</select></label>
+    <label>Fecha cita<select id="f-um"><option value="">— todas —</option>${[...new Set(DATOS.personas.filter(p=>p.fechaUM).map(p=>p.fechaUM.toISOString().slice(0,10)))].sort().map(d=>`<option value="${d}" ${d===FILTROS.um?"selected":""}>${fmtFecha(new Date(d))}</option>`).join("")}</select></label>` : ""}
+    <label>${conApto?"Vence desde":"Caduca desde"}<input type="date" id="f-desde" value="${FILTROS.desde}"></label>
+    <label>${conApto?"Vence hasta":"Caduca hasta"}<input type="date" id="f-hasta" value="${FILTROS.hasta}"></label>
+    <button class="btn2" id="f-limpiar">Limpiar</button>
+  </div>`;
+}
+function bindFiltros(){
+  const set = (id, key) => { const el = $(id); if(el) el.onchange = () => { FILTROS[key] = el.value; render(); }; };
+  set("#f-seccion","seccion"); set("#f-encargado","encargado"); set("#f-formacion","formacion"); set("#f-desde","desde"); set("#f-hasta","hasta"); set("#f-gestiona","gestiona"); set("#f-um","um"); set("#f-via","via"); set("#f-empresa","empresa"); set("#f-turno","turno");
+  const lim = $("#f-limpiar"); if(lim) lim.onclick = () => { Object.keys(FILTROS).forEach(k=>FILTROS[k]=""); render(); };
+}
+function th(vista, key, texto, clase=""){
+  const o = ORDEN[vista]; const act = o.k===key;
+  return `<th class="ord ${clase}" data-vista="${vista}" data-key="${key}">${texto}${act?`<span class="flecha">${o.d>0?"▲":"▼"}</span>`:""}</th>`;
+}
+function ordenar(arr, vista, getters){
+  const o = ORDEN[vista]; const g = getters[o.k] || getters[Object.keys(getters)[0]];
+  return arr.sort((a,b) => { const va=g(a), vb=g(b); if(va==null && vb==null) return 0; if(va==null) return 1; if(vb==null) return -1;
+    return (va<vb ? -1 : va>vb ? 1 : 0) * o.d; });
+}
+function bindOrden(){
+  document.querySelectorAll("th.ord").forEach(h => h.onclick = () => {
+    const o = ORDEN[h.dataset.vista];
+    if(o.k === h.dataset.key) o.d = -o.d; else { o.k = h.dataset.key; o.d = 1; }
+    render();
+  });
+}
+
+function activos(){ return DATOS.personas.filter(p => (INCLUIR_BAJAS || !p.baja) && pasaPersona(p)); }
+
+function contarEstados(){
+  const c = { caducada:0, menos1:0, entre1y2:0, pendientes:0, vigentes:0 };
+  for(const p of activos()){
+    for(const f of DATOS.formaciones){
+      const x = p.celdas[f.nombre];
+      if(x.tipo === "caducada") c.caducada++;
+      else if(x.tipo === "menos1") c.menos1++;
+      else if(x.tipo === "entre1y2") c.entre1y2++;
+      else if(x.tipo === "pendiente" || x.tipo === "noasistio") c.pendientes++;
+      else if(x.tipo === "ok" || x.tipo === "okfijo") c.vigentes++;
+    }
+  }
+  return c;
+}
+
+function filasProblema(tipos){
+  const filas = [];
+  for(const p of activos()){
+    for(const f of DATOS.formaciones){
+      if(FILTROS.formacion && f.nombre !== FILTROS.formacion) continue;
+      const x = p.celdas[f.nombre];
+      if(tipos.includes(x.tipo) && pasaFecha(x)) filas.push({ p, f, x });
+    }
+  }
+  return ordenar(filas, "panel", {
+    caduca: r => r.x.caduca ? r.x.caduca.getTime() : null,
+    persona: r => r.p.claveNombre, seccion: r => r.p.seccion, formacion: r => r.f.nombre
+  });
+}
+
+function vistaPanel(){
+  const c = contarEstados();
+  const btn = (clase, tipo, num, lbl) =>
+    `<button class="${clase}${FILTRO_ANDON===tipo?' sel':''}" data-andon="${tipo}">
+       <span class="num">${num}</span><span class="lbl">${lbl}</span></button>`;
+  let html = barraFiltros(true) + `<div class="andon no-imprimir">
+    ${btn("a-rojo","caducada",c.caducada,"caducadas")}
+    ${btn("a-rojo","pendientes",c.pendientes,"pendientes")}
+    ${btn("a-amarillo","menos1",c.menos1,"caducan en < 1 año")}
+    ${btn("a-naranja","entre1y2",c.entre1y2,"caducan en 1-2 años")}
+  </div>
+  <div class="subnota no-imprimir">Pulsa un contador para ver su detalle · ${c.vigentes} formaciones vigentes con margen ·
+    <label><input type="checkbox" id="chk-bajas" ${INCLUIR_BAJAS?"checked":""}> incluir bajas de larga duración</label>
+  </div>`;
+
+  const seleccion = FILTRO_ANDON || "caducada";
+  const mapa = {
+    caducada: { tipos:["caducada"], titulo:"Formaciones caducadas" },
+    pendientes: { tipos:["pendiente","noasistio"], titulo:"Formaciones pendientes" },
+    menos1: { tipos:["menos1"], titulo:"Caducan en menos de un año" },
+    entre1y2: { tipos:["entre1y2"], titulo:"Caducan entre 1 y 2 años" },
+  };
+  const def = mapa[seleccion];
+  const filas = filasProblema(def.tipos);
+  html += `<div class="bloque"><h3>${def.titulo} <span class="cnt">${filas.length}</span>
+    <span class="der no-imprimir"><button class="btn2" onclick="window.print()">Imprimir este listado</button></span></h3>`;
+  html += `<div class="solo-imprimir">Parcitank · ${def.titulo} · datos de ${DATOS.nombreArchivo} · impreso el ${fmtFecha(new Date())}</div>`;
+  if(!filas.length){ html += `<div class="vacio">Nada por aquí. Buena señal.</div></div>`; return html; }
+  html += `<table><thead><tr>${th("panel","persona","Persona")}${th("panel","seccion","Puesto")}${th("panel","formacion","Formación")}${th("panel","caduca","Estado / caducidad")}</tr></thead><tbody>`;
+  let mesPrevio = "";
+  const agrupaPorMes = ORDEN.panel.k==="caduca" && (seleccion === "menos1" || seleccion === "entre1y2" || seleccion === "caducada");
+  for(const {p,f,x} of filas){
+    if(agrupaPorMes && x.caduca){
+      const m = fmtMes(x.caduca);
+      if(m !== mesPrevio){
+        html += `<tr class="mesgrupo"><td class="mes" colspan="4">${m}</td></tr>`;
+        mesPrevio = m;
+      }
+    }
+    html += `<tr class="fila-persona" data-persona="${p.clave}">
+      <td>${p.nombreCompleto}${p.baja?' <span class="chip c-baja">baja LD</span>':''}</td>
+      <td>${p.seccion}</td><td>${f.nombre}</td><td>${chip(x)}</td></tr>`;
+  }
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+function vistaPersonas(filtroTexto){
+  const q = sinAcentos(filtroTexto||"").toUpperCase().trim();
+  const base = DATOS.personas.filter(p => pasaPersona(p) && (!q || p.clave.includes(q) || p.claveNombre.includes(q) || sinAcentos(p.seccion).toUpperCase().includes(q) || sinAcentos(p.encargado).toUpperCase().includes(q)));
+  const filas = base.map(p => {
+    let pen=0, cad=0, m1=0;
+    for(const f of DATOS.formaciones){
+      if(FILTROS.formacion && f.nombre !== FILTROS.formacion) continue;
+      const x = p.celdas[f.nombre];
+      if(!pasaFecha(x) && (FILTROS.desde||FILTROS.hasta)) continue;
+      const t = x.tipo;
+      if(t==="pendiente"||t==="noasistio") pen++;
+      else if(t==="caducada") cad++;
+      else if(t==="menos1") m1++;
+    }
+    return { p, pen, cad, m1 };
+  }).filter(r => !(FILTROS.formacion||FILTROS.desde||FILTROS.hasta) || r.pen+r.cad+r.m1>0);
+  ordenar(filas, "personas", { nombre:r=>r.p.claveNombre, seccion:r=>r.p.seccion, encargado:r=>r.p.encargado, pen:r=>-r.pen, cad:r=>-r.cad, m1:r=>-r.m1 });
+  let html = barraFiltros(true) + `<div class="bloque"><h3>Trabajadores <span class="cnt">${filas.length} de ${DATOS.personas.length}</span>${DATOS.conectado?'<span class="der no-imprimir"><button class="btn2" id="btn-alta">+ Nueva alta</button></span>':''}</h3>`;
+  if(DATOS.conectado && ALTA_ABIERTA) html += `<div class="editor no-imprimir">
+      <label>Apellidos<input type="text" id="al-ap"></label><label>Nombre<input type="text" id="al-no"></label>
+      <label>Puesto<input type="text" id="al-pu" list="lista-puestos" style="min-width:16rem"><datalist id="lista-puestos">${[...new Set(DATOS.personas.map(p=>p.puesto))].sort().map(v=>`<option value="${v}">`).join("")}</datalist></label>
+      <label>Perfil 1<select id="al-p1"><option value=""></option>${DATOS.perfiles.map(v=>`<option>${v}</option>`).join("")}</select></label>
+      <label>Perfil 2<select id="al-p2"><option value=""></option>${DATOS.perfiles.map(v=>`<option>${v}</option>`).join("")}</select></label>
+      <label>Encargado<input type="text" id="al-enc" list="lista-enc"><datalist id="lista-enc">${[...new Set(DATOS.personas.map(p=>p.encargado).filter(Boolean))].sort().map(v=>`<option value="${v}">`).join("")}</datalist></label>
+      <label>Empresa<select id="al-emp">${["PARCITANK","POLIÉSTER ALBACETE"].map(v=>`<option>${v}</option>`).join("")}</select></label>
+      <label>Fecha alta<input type="date" id="al-alta"></label>
+      <button class="primario" id="btn-guardar-alta">Dar de alta</button>
+    </div>`;
+  if(!filas.length){ return html + `<div class="vacio">Sin resultados.</div></div>`; }
+  html += `<table><thead><tr>${th("personas","nombre","Nombre")}${th("personas","seccion","Puesto")}${th("personas","encargado","Encargado")}${th("personas","pen","Pendientes","num")}${th("personas","cad","Caducadas","num")}${th("personas","m1","&lt; 1 año","num")}</tr></thead><tbody>`;
+  for(const {p,pen,cad,m1} of filas){
+    html += `<tr class="fila-persona" data-persona="${p.clave}">
+      <td>${p.nombreCompleto}${p.baja?' <span class="chip c-baja">baja LD</span>':''}</td>
+      <td>${p.seccion}</td><td>${p.encargado}</td>
+      <td class="num">${pen||""}</td><td class="num">${cad||""}</td><td class="num">${m1||""}</td></tr>`;
+  }
+  return html + `</tbody></table></div>`;
+}
+
+function vistaFicha(p){
+  let html = `<button class="volver no-imprimir" id="btn-volver">← volver</button>
+  <div class="bloque">
+    <div class="ficha-cab">
+      <h2>${p.nombreCompleto}</h2>
+      ${p.baja?'<span class="chip c-baja">baja de larga duración</span>':''}${p.empresa&&p.empresa!=="PARCITANK"?`<span class="chip c-opc">${p.empresa}</span>`:''}
+      <span class="ficha-datos">${p.seccion} · ${p.puesto} · perfil: ${p.perfil1}${p.perfil2?" + "+p.perfil2:""} · encargado: ${p.encargado}</span>
+    </div>
+    <div class="ficha-datos" style="padding:0 .9rem .7rem">
+      ${p.dni?`DNI ${p.dni} · `:""}${p.niss?`NISS ${p.niss} · `:""}${p.edad!=null?`${p.edad} años · `:""}${p.alta?`alta ${fmtFecha(p.alta)} · `:""}${p.turno?`turno ${p.turno} · `:""}${p.practicas==="SÍ"?"en prácticas · ":""}${p.telefono?`tel. ${p.telefono} · `:""}${p.correo||""}
+    </div>
+    <div class="ficha-datos" style="padding:.5rem .9rem; border-top:1px solid var(--line); border-bottom:1px solid var(--line); background:#FBF8F2">
+      <strong>Apto médico:</strong> ${chipApto(p)} ${p.gestiona?`· gestiona ${p.gestiona}`:""} ${p.via?`· ${p.via}`:""} ${p.fechaUM?`· cita ${fmtFecha(p.fechaUM)}`:""}
+      ${p.restricciones?`<br><strong style="color:var(--naranja)">Restricciones:</strong> ${p.restricciones}`:""}
+    </div>
+    ${DATOS.conectado ? `<div class="editor no-imprimir" data-fila="${p.fila}">
+      <label>Apto hasta<input type="date" id="ed-apto" value="${p.apto?p.apto.toISOString().slice(0,10):""}"></label>
+      <label>Gestiona<select id="ed-gestiona"><option value=""></option>${["ALEJANDRO","ENCARNA"].map(v=>`<option ${p.gestiona===v?"selected":""}>${v}</option>`).join("")}</select></label>
+      <label>Vía<select id="ed-via"><option value=""></option>${["UM","QUIRÓN","SEPREVILLA"].map(v=>`<option ${p.via===v?"selected":""}>${v}</option>`).join("")}</select></label>
+      <label>Fecha cita<input type="date" id="ed-cita" value="${p.fechaUM?p.fechaUM.toISOString().slice(0,10):""}"></label>
+      <label style="flex:1">Restricciones / observaciones<input type="text" id="ed-restr" value="${(p.restricciones||"").replace(/"/g,"&quot;")}" style="min-width:16rem"></label>
+      <button class="primario" id="btn-guardar-apto">Guardar apto</button>
+    </div>` : ""}
+    <div class="solo-imprimir">Parcitank · Ficha de formación · datos de ${DATOS.nombreArchivo} · impreso el ${fmtFecha(new Date())}</div>
+    <table><thead><tr><th>Formación</th><th>Última fecha</th><th>Estado</th></tr></thead><tbody>`;
+  const orden = t => ({caducada:0,pendiente:1,noasistio:1,menos1:2,entre1y2:3,ok:4,okfijo:4,opc:5,na:6}[t] ?? 7);
+  const fs = [...DATOS.formaciones].sort((a,b) => orden(p.celdas[a.nombre].tipo) - orden(p.celdas[b.nombre].tipo));
+  for(const f of fs){
+    const x = p.celdas[f.nombre];
+    if(x.tipo === "na") continue;
+    html += `<tr><td>${f.nombre}</td><td>${x.fecha?fmtFecha(x.fecha):"—"}</td><td>${chip(x)}</td></tr>`;
+  }
+  html += `</tbody></table>`;
+  const naLista = DATOS.formaciones.filter(f => p.celdas[f.nombre].tipo === "na").map(f => f.nombre);
+  if(naLista.length) html += `<div class="vacio">No aplican a su puesto: ${naLista.join(" · ")}</div>`;
+  if(p.obs) html += `<div class="obs"><strong>Observaciones:</strong> ${p.obs}</div>`;
+  html += `</div>`;
+  return html;
+}
+
+function vistaFormaciones(){
+  let html = barraFiltros(false) + `<div class="bloque"><h3>Cursos
+    <span class="der no-imprimir">
+      <select id="sel-formacion">
+        <option value="">— resumen de todas —</option>
+        ${DATOS.formaciones.map(f => `<option ${f.nombre===FORMACION_ACTUAL?"selected":""}>${f.nombre}</option>`).join("")}
+      </select>
+    </span></h3>`;
+  if(!FORMACION_ACTUAL){
+    html += `<table><thead><tr>${th("formaciones","nombre","Formación")}${th("formaciones","pen","Pendientes","num")}${th("formaciones","cad","Caducadas","num")}${th("formaciones","m1","&lt; 1 año","num")}${th("formaciones","e12","1-2 años","num")}${th("formaciones","ok","Vigentes","num")}</tr></thead><tbody>`;
+    const res = [];
+    DATOS.formaciones.forEach((f,i) => {
+      let pen=0,cad=0,m1=0,e12=0,ok=0;
+      for(const p of activos()){
+        const x = p.celdas[f.nombre]; const t = x.tipo;
+        if((FILTROS.desde||FILTROS.hasta) && !pasaFecha(x)) continue;
+        if(t==="pendiente"||t==="noasistio") pen++;
+        else if(t==="caducada") cad++;
+        else if(t==="menos1") m1++;
+        else if(t==="entre1y2") e12++;
+        else if(t==="ok"||t==="okfijo") ok++;
+      }
+      if(pen+cad+m1+e12+ok === 0) return;
+      res.push({f,i,pen,cad,m1,e12,ok});
+    });
+    ordenar(res, "formaciones", { nombre:r=>r.i, pen:r=>-r.pen, cad:r=>-r.cad, m1:r=>-r.m1, e12:r=>-r.e12, ok:r=>-r.ok });
+    for(const {f,pen,cad,m1,e12,ok} of res){
+      html += `<tr class="fila-persona" data-formacion="${f.nombre}"><td>${f.nombre}</td>
+        <td class="num">${pen||""}</td><td class="num">${cad||""}</td><td class="num">${m1||""}</td><td class="num">${e12||""}</td><td class="num">${ok||""}</td></tr>`;
+    }
+    return html + `</tbody></table></div>`;
+  }
+  // detalle de una formación: lista de convocatoria
+  const f = DATOS.formaciones.find(x => x.nombre === FORMACION_ACTUAL);
+  const grupos = { urg:[], prox:[], resto:[] };
+  for(const p of activos()){
+    const x = p.celdas[f.nombre];
+    if(!pasaFecha(x) && (FILTROS.desde||FILTROS.hasta)) continue;
+    if(x.tipo==="pendiente"||x.tipo==="noasistio"||x.tipo==="caducada") grupos.urg.push({p,x});
+    else if(x.tipo==="menos1") grupos.prox.push({p,x});
+    else if(x.tipo==="entre1y2") grupos.resto.push({p,x});
+  }
+  grupos.prox.sort((a,b)=>a.x.caduca-b.x.caduca); grupos.resto.sort((a,b)=>a.x.caduca-b.x.caduca);
+  html += `<div class="solo-imprimir">Parcitank · ${f.nombre} — listado de convocatoria · datos de ${DATOS.nombreArchivo} · impreso el ${fmtFecha(new Date())}</div>`;
+  const ed = !!(DATOS.conectado);
+  const seccionLista = (titulo, arr) => {
+    if(!arr.length) return "";
+    ordenar(arr, "detalle", { caduca:r=>r.x.caduca?r.x.caduca.getTime():null, persona:r=>r.p.claveNombre, seccion:r=>r.p.seccion, encargado:r=>r.p.encargado });
+    let s = `<table><thead><tr><th colspan="${ed?10:9}">${titulo} — ${arr.length}</th></tr><tr>${ed?'<th class="marca no-imprimir"></th>':''}${th("detalle","persona","Nombre")}<th>DNI</th><th>NISS</th><th>F. nacimiento</th><th>Teléfono</th><th>Email</th>${th("detalle","seccion","Puesto")}${th("detalle","encargado","Encargado")}${th("detalle","caduca","Estado")}</tr></thead><tbody>`;
+    for(const {p,x} of arr){
+      s += `<tr class="fila-persona" data-persona="${p.clave}">
+        ${ed?`<td class="marca no-imprimir"><input type="checkbox" class="chk-curso" data-fila="${p.fila}" onclick="event.stopPropagation()"></td>`:''}<td>${p.nombreCompleto}</td><td>${p.dni||""}</td><td>${p.niss||""}</td><td>${p.nacimiento?fmtFecha(p.nacimiento):""}</td><td>${p.telefono||""}</td><td>${p.correo||""}</td><td>${p.seccion}</td><td>${p.encargado}</td><td>${chip(x)}</td></tr>`;
+    }
+    return s + `</tbody></table>`;
+  };
+  html += seccionLista("A convocar ya (pendientes y caducadas)", grupos.urg);
+  html += seccionLista("Caducan en menos de un año", grupos.prox);
+  html += seccionLista("Caducan en 1-2 años", grupos.resto);
+  if(!grupos.urg.length && !grupos.prox.length && !grupos.resto.length)
+    html += `<div class="vacio">Todo el mundo al día en esta formación.</div>`;
+  html += `<div class="vacio no-imprimir"><button class="btn2" onclick="window.print()">Imprimir listado de convocatoria</button></div>`;
+  if(ed) html += `<div class="editor no-imprimir"><label>Fecha en que se ha hecho el curso<input type="date" id="curso-fecha"></label>
+      <button class="primario" id="btn-registrar-curso">Registrar "${f.nombre}" a los marcados</button>
+      <span class="fechacad">Marca las casillas de los asistentes; se escribe la fecha en su celda del Excel.</span></div>`;
+  return html + `</div>`;
+}
+
+/* Formaciones que no invalidan para trabajar (no cuentan en el panel principal) */
+const NO_INVALIDA = n => { const u = n.toUpperCase(); return u.includes("DEA") || u.startsWith("PRIMEROS") || u.includes("EXTINCI"); };
+function problemas(p){
+  const out = []; let falta = false; let peor = null;
+  if(p.aptoEstado==="vencido"){ out.push({html:`<span class="chip c-caducada">Apto vencido</span> <span class="fechacad">${fmtFecha(p.apto)}</span>`}); peor = peor==null||p.apto<peor ? p.apto : peor; }
+  if(p.aptoEstado==="sinapto"){ out.push({html:`<span class="chip c-pendiente">Sin apto</span>`}); falta = true; }
+  for(const f of DATOS.formaciones){
+    if(NO_INVALIDA(f.nombre)) continue;
+    const x = p.celdas[f.nombre];
+    if(x.tipo==="caducada"){ out.push({html:`<span class="chip c-caducada">${f.nombre}</span> <span class="fechacad">caducada ${fmtFecha(x.caduca)}</span>`}); peor = peor==null||x.caduca<peor ? x.caduca : peor; }
+    else if(x.tipo==="pendiente"){ out.push({html:`<span class="chip c-pendiente">${f.nombre}</span> <span class="fechacad">pendiente</span>`}); falta = true; }
+    else if(x.tipo==="noasistio"){ out.push({html:`<span class="chip c-noasistio">${f.nombre}</span> <span class="fechacad">no se presentó</span>`}); falta = true; }
+  }
+  out.falta = falta; out.peor = peor;
+  return out;
+}
+function avisos(p){
+  const out = [];
+  if(p.aptoEstado==="pronto") out.push(`<span class="chip c-menos1">Apto vence ${fmtFecha(p.apto)}</span>`);
+  for(const f of DATOS.formaciones){ if(NO_INVALIDA(f.nombre)) continue; const x=p.celdas[f.nombre]; if(x.tipo==="menos1") out.push(`<span class="chip c-menos1">${f.nombre} caduca ${fmtFecha(x.caduca)}</span>`); }
+  return out;
+}
+function proxima(p){
+  let mejor = null;
+  const cand = (fecha, que) => { if(fecha && fecha >= HOY && (!mejor || fecha < mejor.fecha)) mejor = {fecha, que}; };
+  if(p.apto && p.aptoEstado!=="na") cand(p.apto, "Apto médico");
+  for(const f of DATOS.formaciones){ if(NO_INVALIDA(f.nombre)) continue; const x = p.celdas[f.nombre]; if(x.caduca) cand(x.caduca, f.nombre); }
+  return mejor;
+}
+function vistaOperarios(){
+  const lista = activos().map(p => ({p, pr: problemas(p), av: avisos(p), px: proxima(p)}));
+  const faltan = lista.filter(r=>r.pr.length && r.pr.falta);
+  const caducados = lista.filter(r=>r.pr.length && !r.pr.falta);
+  const verdes = lista.filter(r=>!r.pr.length);
+  const porNombre = (a,b) => a.p.claveNombre<b.p.claveNombre?-1:1;
+  faltan.sort((a,b) => (b.pr.length - a.pr.length) || porNombre(a,b));
+  caducados.sort((a,b) => (a.pr.peor - b.pr.peor) || porNombre(a,b));
+  verdes.sort((a,b) => ((a.px?a.px.fecha:Infinity) - (b.px?b.px.fecha:Infinity)) || porNombre(a,b));
+  let html = barraFiltros(false) + `<div class="kpis no-imprimir">
+    <div class="kpi f"><b>${faltan.length}</b><span>les falta algo<br>(pendiente, no presentado o sin apto)</span></div>
+    <div class="kpi r"><b>${caducados.length}</b><span>con algo caducado</span></div>
+    <div class="kpi v"><b>${verdes.length}</b><span>en regla</span></div>
+    <div class="kpi chk"><label><input type="checkbox" id="chk-bajas" ${INCLUIR_BAJAS?"checked":""}> incluir bajas LD</label></div>
+  </div>`;
+  html += `<div class="solo-imprimir">Parcitank · Panel principal · datos de ${DATOS.nombreArchivo} · impreso el ${fmtFecha(new Date())}</div>`;
+  html += `<div class="bloque"><table class="lista"><thead><tr><th>Trabajador</th><th>Puesto</th><th>Estado / próxima caducidad</th><th class="num">Problemas</th></tr></thead><tbody>`;
+  const fila = ({p,pr,av,px}) => {
+    const abierto = OP_ABIERTO===p.clave;
+    let t = `<tr class="op ${pr.length?'mal':'ok'} ${abierto?'abierto':''}" data-op="${p.clave}">
+      <td>${p.nombreCompleto}${p.baja?' <span class="chip c-baja">baja LD</span>':''}</td><td>${p.puesto}</td>
+      <td>${pr.length ? (pr.falta?'<span class="chip c-pendiente">Le falta algo</span>':'<span class="chip c-caducada">Caducado</span>') : '<span class="chip c-ok">En regla</span>'}${!pr.length && px ? ` <span class="fechacad">· próxima: <b>${fmtFecha(px.fecha)}</b> ${px.que}</span>` : ''}</td>
+      <td class="num">${pr.length||""}</td></tr>`;
+    if(abierto){
+      t += `<tr class="detalle"><td colspan="4"><div class="porque">${pr.length ? pr.map(x=>x.html).join("") : '<span class="chip c-ok">Todo en regla</span>'}</div>`;
+      if(av.length) t += `<div class="porque">${av.join("")}</div>`;
+      t += `<div class="acciones"><button class="volver" data-ficha="${p.clave}">ver ficha completa →</button></div></td></tr>`;
+    }
+    return t;
+  };
+  html += faltan.map(fila).join("") + caducados.map(fila).join("") + verdes.map(fila).join("");
+  if(!lista.length) html += `<tr><td colspan="4" class="vacio">Nadie con estos filtros.</td></tr>`;
+  return html + `</tbody></table></div>`;
+}
+let FILTRO_APTO = null;
+let ALTA_ABIERTA = false;
+function vistaAptos(){
+  const lista = activos();
+  const c = { vencido:0, sinapto:0, pronto:0, ok:0, na:0 };
+  lista.forEach(p => c[p.aptoEstado]++);
+  const btn = (clase, tipo, num, lbl) => `<button class="${clase}${FILTRO_APTO===tipo?' sel':''}" data-apto="${tipo}"><span class="num">${num}</span><span class="lbl">${lbl}</span></button>`;
+  let html = barraFiltros(false, true) + `<div class="andon no-imprimir">
+    ${btn("a-rojo","vencido",c.vencido,"aptos vencidos")}
+    ${btn("a-rojo","sinapto",c.sinapto,"sin apto")}
+    ${btn("a-amarillo","pronto",c.pronto,"vencen en < 60 días")}
+    ${btn("a-verde","ok",c.ok,"vigentes")}
+    ${btn("a-todos","todos",c.vencido+c.sinapto+c.pronto+c.ok,"todos")}
+  </div>
+  <div class="subnota no-imprimir">Pulsa un contador para ver su detalle · ${c.na} sin reconocimiento por decisión propia · <label><input type="checkbox" id="chk-bajas" ${INCLUIR_BAJAS?"checked":""}> incluir bajas de larga duración</label></div>`;
+  const sel = FILTRO_APTO || "vencido";
+  const titulos = { vencido:"Aptos vencidos", sinapto:"Sin apto registrado", pronto:"Vencen en menos de 60 días", ok:"Aptos vigentes", todos:"Todos los aptos" };
+  let filas = lista.filter(p => (sel==="todos" ? p.aptoEstado!=="na" : p.aptoEstado===sel) && (sel==="sinapto" || !p.apto || pasaFecha({caduca:p.apto}))).map(p=>({p}));
+  ordenar(filas, "aptos", { fecha:r=>r.p.apto?r.p.apto.getTime():null, persona:r=>r.p.claveNombre, seccion:r=>r.p.seccion, gestiona:r=>r.p.gestiona, via:r=>r.p.via, um:r=>r.p.fechaUM?r.p.fechaUM.getTime():null, dni:r=>r.p.dni });
+  html += `<div class="bloque"><h3>${titulos[sel]} <span class="cnt">${filas.length}</span>
+    <span class="der no-imprimir"><button class="btn2" onclick="window.print()">Imprimir listado</button></span></h3>`;
+  html += `<div class="solo-imprimir">Parcitank · ${titulos[sel]} · datos de ${DATOS.nombreArchivo} · impreso el ${fmtFecha(new Date())}</div>`;
+  if(!filas.length) return html + `<div class="vacio">Nadie en este grupo.</div></div>`;
+  html += `<table><thead><tr>${th("aptos","persona","Persona")}${th("aptos","seccion","Puesto")}${th("aptos","fecha","Apto")}${th("aptos","gestiona","Gestiona")}${th("aptos","via","Vía")}${th("aptos","um","Fecha cita")}${th("aptos","dni","DNI")}<th>Teléfono</th><th>Restricciones</th></tr></thead><tbody>`;
+  let mesPrevio="";
+  for(const {p} of filas){
+    if(ORDEN.aptos.k==="fecha" && p.apto){ const m=fmtMes(p.apto); if(m!==mesPrevio){ html+=`<tr class="mesgrupo"><td class="mes" colspan="9">${m}</td></tr>`; mesPrevio=m; } }
+    html += `<tr class="fila-persona" data-persona="${p.clave}"><td>${p.nombreCompleto}${p.baja?' <span class="chip c-baja">baja LD</span>':''}</td>
+      <td>${p.seccion}</td><td>${chipApto(p)}</td><td>${p.gestiona||""}</td><td>${p.via||""}</td><td>${p.fechaUM?fmtFecha(p.fechaUM):""}</td><td>${p.dni||""}</td><td>${p.telefono||""}</td><td>${p.restricciones||""}</td></tr>`;
+  }
+  return html + `</tbody></table></div>`;
+}
+
+/* ============================================================
+   RENDER Y EVENTOS
+   ============================================================ */
+function render(){
+  const cont = $("#contenido");
+  if(VISTA === "operarios") cont.innerHTML = vistaOperarios();
+  else if(VISTA === "panel") cont.innerHTML = vistaPanel();
+  else if(VISTA === "personas") cont.innerHTML = PERSONA_ACTUAL ? vistaFicha(PERSONA_ACTUAL) : vistaPersonas($("#buscar").value);
+  else if(VISTA === "formaciones") cont.innerHTML = vistaFormaciones();
+  else if(VISTA === "aptos") cont.innerHTML = vistaAptos();
+  // eventos delegados
+  bindFiltros(); bindOrden();
+  cont.querySelectorAll("[data-andon]").forEach(b => b.onclick = () => {
+    FILTRO_ANDON = b.dataset.andon; render();
+  });
+  cont.querySelectorAll("[data-op]").forEach(el => el.onclick = e => {
+    if(e.target.closest("[data-ficha]")) return;
+    OP_ABIERTO = (OP_ABIERTO===el.dataset.op) ? null : el.dataset.op; render();
+  });
+  cont.querySelectorAll("[data-ficha]").forEach(b => b.onclick = () => {
+    PERSONA_ACTUAL = DATOS.personas.find(p => p.clave === b.dataset.ficha); VISTA = "personas"; marcarTab(); render(); window.scrollTo(0,0);
+  });
+  cont.querySelectorAll("[data-apto]").forEach(b => b.onclick = () => {
+    FILTRO_APTO = b.dataset.apto; render();
+  });
+  const chk = $("#chk-bajas");
+  if(chk) chk.onchange = () => { INCLUIR_BAJAS = chk.checked; render(); };
+  cont.querySelectorAll("tr[data-persona]").forEach(tr => tr.onclick = () => {
+    PERSONA_ACTUAL = DATOS.personas.find(p => p.clave === tr.dataset.persona);
+    VISTA = "personas"; marcarTab(); render();
+    window.scrollTo(0,0);
+  });
+  cont.querySelectorAll("tr[data-formacion]").forEach(tr => tr.onclick = () => {
+    FORMACION_ACTUAL = tr.dataset.formacion; render();
+  });
+  // --- edición (solo modo conectado) ---
+  const bCurso = $("#btn-registrar-curso");
+  if(bCurso) bCurso.onclick = async () => {
+    const fecha = $("#curso-fecha").value; const filas = [...cont.querySelectorAll(".chk-curso:checked")].map(c => +c.dataset.fila);
+    if(!fecha || !filas.length){ aviso("Elige la fecha y marca al menos una persona."); return; }
+    const f = DATOS.formaciones.find(x => x.nombre === FORMACION_ACTUAL);
+    bCurso.disabled = true;
+    try{ await escribirCeldas(filas.map(fila => ({ fila, col: f.col, valor: serialDeFecha(fecha), formato: "dd/mm/yy" }))); }
+    catch(e){ aviso("Error al guardar: " + e.message); bCurso.disabled = false; }
+  };
+  const bApto = $("#btn-guardar-apto");
+  if(bApto) bApto.onclick = async () => {
+    const fila = +bApto.closest(".editor").dataset.fila; const I = DATOS.idx; const cambios = [];
+    const apto = $("#ed-apto").value; if(I["APTO HASTA"]!=null) cambios.push({ fila, col:I["APTO HASTA"], valor: apto ? serialDeFecha(apto) : "", formato: apto ? "dd/mm/yyyy" : null });
+    if(I["GESTIONA"]!=null) cambios.push({ fila, col:I["GESTIONA"], valor: $("#ed-gestiona").value });
+    if(I["VÍA"]!=null) cambios.push({ fila, col:I["VÍA"], valor: $("#ed-via").value });
+    const cita = $("#ed-cita").value; if(I["FECHA CITA"]!=null) cambios.push({ fila, col:I["FECHA CITA"], valor: cita ? serialDeFecha(cita) : "", formato: cita ? "dd/mm/yyyy" : null });
+    const kr = Object.keys(I).find(k => k.toUpperCase().startsWith("RESTRICCIONES")); if(kr) cambios.push({ fila, col:I[kr], valor: $("#ed-restr").value });
+    bApto.disabled = true;
+    try{ await escribirCeldas(cambios); PERSONA_ACTUAL = DATOS.personas.find(p => p.fila === fila) || null; render(); }
+    catch(e){ aviso("Error al guardar: " + e.message); bApto.disabled = false; }
+  };
+  const bAlta = $("#btn-alta"); if(bAlta) bAlta.onclick = () => { ALTA_ABIERTA = !ALTA_ABIERTA; render(); };
+  const bGA = $("#btn-guardar-alta");
+  if(bGA) bGA.onclick = async () => {
+    const v = id => ($("#"+id).value || "").trim(); const I = DATOS.idx;
+    const ap = v("al-ap").toUpperCase(), no = v("al-no").toUpperCase();
+    if(!ap || !no){ aviso("Apellidos y nombre son obligatorios."); return; }
+    const fila = DATOS.ultimaFila + 1; const cambios = [];
+    const put = (k, val, fmt) => { if(I[k]!=null && val!=="") cambios.push({ fila, col:I[k], valor:val, formato:fmt||null }); };
+    put("APELLIDOS", ap); put("NOMBRE", no); put("PUESTO", v("al-pu").toUpperCase()); put("PERFIL 1", v("al-p1")); put("PERFIL 2", v("al-p2"));
+    put("ENCARGADO", v("al-enc").toUpperCase()); put("EMPRESA", v("al-emp")); put("SITUACIÓN", "ACTIVO"); put("PRÁCTICAS", "NO");
+    const alta = v("al-alta"); if(alta) put("ALTA", serialDeFecha(alta), "dd/mm/yyyy");
+    bGA.disabled = true;
+    try{ await escribirCeldas(cambios); ALTA_ABIERTA = false; render(); }
+    catch(e){ aviso("Error al guardar: " + e.message); bGA.disabled = false; }
+  };
+  const volver = $("#btn-volver");
+  if(volver) volver.onclick = () => { PERSONA_ACTUAL = null; render(); };
+  const sel = $("#sel-formacion");
+  if(sel) sel.onchange = () => { FORMACION_ACTUAL = sel.value; render(); };
+}
+
+function marcarTab(){
+  document.querySelectorAll("nav .tab").forEach(t =>
+    t.classList.toggle("activa", t.dataset.vista === VISTA));
+}
+
+document.querySelectorAll("nav .tab").forEach(t => t.onclick = () => {
+  VISTA = t.dataset.vista;
+  if(VISTA !== "personas") PERSONA_ACTUAL = null;
+  marcarTab(); render();
+});
+$("#buscar").addEventListener("input", () => {
+  VISTA = "personas"; PERSONA_ACTUAL = null; marcarTab(); render();
+});
+$("#btn-imprimir").onclick = () => window.print();
+$("#btn-recargar").onclick = () => { if(confirm("¿Cambiar de archivo / cerrar la conexión?")) { localStorage.removeItem("prl.enlaceMaestro"); location.reload(); } };
+
+/* ---------- carga de archivo ---------- */
+async function procesar(file){
+  const err = $("#error-carga");
+  err.textContent = "";
+  try{
+    if(!window.DecompressionStream) throw new Error("Este navegador es demasiado antiguo (falta DecompressionStream). Usa Edge o Chrome actualizados.");
+    const buf = await file.arrayBuffer();
+    const libro = await cargarMaestro(buf);
+    const plantilla = await libro.hoja("Plantilla");
+    const catalogo = await libro.hoja("Catálogo") || await libro.hoja("Catalogo");
+    const oblig = await libro.hoja("Obligatorios");
+    if(!plantilla) throw new Error("No encuentro la hoja Plantilla — ¿seguro que es el Excel maestro?");
+    if(!oblig) throw new Error("No encuentro la hoja Obligatorios — la app la necesita para calcular pendientes");
+    construirModelo(plantilla, catalogo || [], oblig, file.name, new Date(file.lastModified));
+    $("#dropzone").style.display = "none";
+    $("#cabecera").style.display = "flex";
+    $("#navegacion").style.display = "flex";
+    $("#contenido").style.display = "block";
+    $("#fileinfo").textContent = `${file.name} · guardado el ${fmtFecha(new Date(file.lastModified))} · ${DATOS.personas.length} personas`;
+    VISTA = "operarios"; FILTRO_ANDON = null; PERSONA_ACTUAL = null; FORMACION_ACTUAL = "";
+    marcarTab(); render();
+  }catch(e){
+    err.textContent = "No he podido leer el archivo: " + e.message;
+  }
+}
+$("#btn-elegir").onclick = () => $("#fichero").click();
+if(esWeb){ $("#modo-m365").style.display = "block"; if(!localStorage.getItem("prl.enlaceMaestro")) $("#cfg-enlace").style.display = "block"; }
+$("#btn-m365").onclick = conectarM365;
+$("#btn-refrescar").onclick = async () => { try{ await cargarDesdeGraph(); aviso("Datos actualizados desde el Excel."); }catch(e){ aviso("Error: " + e.message); } };
+$("#fichero").onchange = e => { if(e.target.files[0]) procesar(e.target.files[0]); };
+const dz = $("#dropzone");
+["dragenter","dragover"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add("arrastrando"); }));
+["dragleave","drop"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove("arrastrando"); }));
+dz.addEventListener("drop", e => { if(e.dataTransfer.files[0]) procesar(e.dataTransfer.files[0]); });
+document.body.addEventListener("dragover", e => e.preventDefault());
+document.body.addEventListener("drop", e => e.preventDefault());
+</script>
+</body>
+</html>
