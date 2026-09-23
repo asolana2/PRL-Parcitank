@@ -1673,7 +1673,7 @@ function construirModelo(filasPlantilla, filasCatalogo, filasOblig, nombreArchiv
     /* --- revisión de la fila --- */
     { const F = p.fila, Q = `${p.nombre} ${p.apellidos}`.trim(); const I = (col, val, esp) => inc("Plantilla", F, Q, (idx[col]!=null ? colLetra(idx[col]) + " · " : "") + col, val, esp, p);
       if(p.turno && !["M","T","P"].includes(p.turno)) I("TURNO", p.turno, "M, T, P (en mayúsculas) o vacío");
-      if(p.ubicacion && !["OFICINA","OBRA","FABRICA"].includes(p.ubicacion)) I("UBICACION", txt("UBICACION"), "OFICINA, OBRA o FÁBRICA");
+      if(p.ubicacion && !["OFICINA","OBRA","FABRICA"].includes(p.ubicacion)) I("UBICACION", txt("UBICACION"), "OFICINA, OBRA o FABRICA");
       { const raw = txt("APTO HASTA"); if(raw && !p.apto && !p.aptoNA) I("APTO HASTA", raw, "fecha o NA"); }
       { const raw = txt("FECHA CITA") || txt("FECHA UM") || txt("CITA RECO"); if(raw && !p.fechaUM) I("FECHA CITA", raw, "fecha"); }
       if(p.via && !["UM","QUIRÓN","SEPREVILLA"].includes(p.via)) I("VÍA", txt("VÍA"), "UM, QUIRÓN, SEPREVILLA o vacío");
