@@ -1161,8 +1161,22 @@ async function kvGet(k){ try{ const db = await idb(); return await new Promise((
 async function kvSet(k, v){ try{ const db = await idb(); await new Promise((res, rej) => { const t = db.transaction("kv","readwrite").objectStore("kv").put(v, k); t.onsuccess = () => res(); t.onerror = () => rej(t.error); }); }catch(e){} }
 async function kvDel(k){ try{ const db = await idb(); await new Promise((res, rej) => { const t = db.transaction("kv","readwrite").objectStore("kv").delete(k); t.onsuccess = () => res(); t.onerror = () => rej(t.error); }); }catch(e){} }
 
+/* Elegir una carpeta. Edge cancela él solo la elección (AbortError, sin avisar) si, mientras está abierta la ventana de elegir, su propia ventana deja de verse
+   (tapada entera por esa ventana, minimizada o muy pequeña). La app se callaba y parecía que no pasaba nada: ahora lo dice (v2.70) */
+async function pedirCarpeta(){
+  let tapada = document.visibilityState !== "visible"; const ver = () => { if(document.visibilityState !== "visible") tapada = true; };
+  document.addEventListener("visibilitychange", ver);
+  try{ return await window.showDirectoryPicker({ mode:"readwrite" }); }
+  catch(e){
+    if(!e || e.name !== "AbortError") throw e;
+    const x = new Error(tapada ? "Edge ha cancelado la elección de carpeta porque su ventana no se veía. Deja Edge a la vista detrás de la ventana de elegir (mejor maximizado) y vuelve a pulsar."
+      : "No se ha elegido ninguna carpeta. Si la habías elegido, es que Edge ha cancelado la elección: deja Edge a la vista detrás de la ventana de elegir (mejor maximizado) y vuelve a pulsar.");
+    x.name = "CarpetaCancelada"; x.tapada = tapada; throw x;
+  }finally{ document.removeEventListener("visibilitychange", ver); }
+}
+const avisoCarpeta = e => { if(e && e.name === "CarpetaCancelada") aviso(e.message, e.tapada ? "naranja" : undefined, 12000); else aviso((e && e.message) || String(e)); };
 async function elegirCarpeta(){
-  const h = await window.showDirectoryPicker({ mode:"readwrite" });
+  const h = await pedirCarpeta();
   CARPETA = h; await kvSet("carpeta", h); await cargarDesdeCarpeta();
 }
 async function abrirCarpetaGuardada(){
@@ -2519,7 +2533,7 @@ async function parteMantenimiento(){
   w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Parte de deficiencias ${fmtFecha(new Date())}</title><style>*{-webkit-print-color-adjust:exact; print-color-adjust:exact}body{font-family:"Segoe UI",Arial,sans-serif;font-size:9.5pt;color:#20242A;margin:12mm}h1{font-size:14pt;color:#184280;margin:0 0 2mm}p.s{color:#69707A;margin:0 0 6mm}table{border-collapse:collapse;width:100%}td{border:1px solid #9AA09A;padding:2mm;vertical-align:top}td.f{width:34mm}td.f img{width:32mm;max-height:28mm;object-fit:cover;border-radius:3px;display:block;margin-bottom:1mm}td.d{background:#FBECEB;border-left:5px solid #C0392B}tr.sec td{background:#E4E9F4;color:#184280;font-weight:700;font-size:12pt;letter-spacing:.03em;border-left:5px solid #184280;border-top:2px solid #184280}.g{color:#69707A}tr{page-break-inside:avoid}@media print{button{display:none}}</style></head><body><button onclick="window.print()" style="float:right">Imprimir / guardar PDF</button><h1>PARCITANK · Parte de deficiencias en equipos de trabajo</h1><p class="s">Servicio de Prevención → Mantenimiento · ${fmtFecha(new Date())} · ${defs.length} deficiencia${defs.length===1?"":"s"} abierta${defs.length===1?"":"s"}${EQ_FILTROS.seccion?` · sección ${EQ_FILTROS.seccion}`:""}</p><table>${filas.join("")}</table></body></html>`);
   w.document.close();
 }
-async function elegirCarpetaMaquinas(){ const h = await window.showDirectoryPicker({ mode:"readwrite" }); CARPETA_MAQ = h; await kvSet("carpetaMaquinas", h); Object.keys(CACHE_MAQ).forEach(k => delete CACHE_MAQ[k]); await indexarMaquinas(); if(!LOCAL || !LOCAL.equipos) await buscarEquiposEnMaquinas(); render(); }
+async function elegirCarpetaMaquinas(){ const h = await pedirCarpeta(); CARPETA_MAQ = h; await kvSet("carpetaMaquinas", h); Object.keys(CACHE_MAQ).forEach(k => delete CACHE_MAQ[k]); await indexarMaquinas(); if(!LOCAL || !LOCAL.equipos) await buscarEquiposEnMaquinas(); render(); }
 async function abrirCarpetaMaquinasGuardada(){ const h = await kvGet("carpetaMaquinas"); if(!h) return false; let perm = await h.queryPermission({ mode:"readwrite" }); if(perm !== "granted") return false; CARPETA_MAQ = h; await indexarMaquinas(); if(!LOCAL || !LOCAL.equipos) await buscarEquiposEnMaquinas(); return true; }
 
 /* --- escritura --- */
@@ -2529,7 +2543,7 @@ async function escribirCeldas(cambios){ // [{fila, col, valor, formato}]
   throw new Error("No hay ningún Excel abierto desde la carpeta.");
 }
 function colLetra(i){ let n = i + 1, s = ""; while(n > 0){ const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
-function aviso(txt, error){ const naranja = error === "naranja";
+function aviso(txt, error, ms){ const naranja = error === "naranja"; // ms: cuánto dura un aviso gris (por defecto, 3,5 s)
   // rojo = no se ha guardado (o algo ha fallado); verde = guardado; lo demás, gris como siempre
   const esError = !naranja && (error === true || /^Error|^No se (guarda|puede|pudo|pudieron|ha podido)|no se (puede|pudo|ha podido)|no se ha guardado|no cuadra|ha bloqueado|ha cambiado un archivo|ha cambiado por fuera|copias en conflicto|^Abre la carpeta|no está en el Excel|no es un archivo/i.test(txt));
   const esOk = !esError && /^(Guardado|Alta guardada|Deficiencia guardada|Ronda guardada|Anotado|Observación quitada|Importadas|Enviadas|Revisiones|\d+ (observaciones pasadas|fotos? guardad))|: deficiencia (actualizada|resuelta|en curso|abierta|borrada)/i.test(txt);
@@ -2538,7 +2552,7 @@ function aviso(txt, error){ const naranja = error === "naranja";
     const x = document.createElement("button"); x.textContent = "✕"; x.title = "Cerrar"; x.onclick = () => d.remove(); d.appendChild(x);
     d.style.bottom = (1.2 + 3.2 * document.querySelectorAll(".toast.error, .toast.naranja").length) + "rem";
     document.body.appendChild(d); return; }
-  document.body.appendChild(d); setTimeout(()=>d.remove(), 3500);
+  document.body.appendChild(d); setTimeout(()=>d.remove(), ms || 3500);
 }
 
 /* ============================================================
@@ -3773,7 +3787,7 @@ const OCUPA_CONV = new Set(["ASIGNADO","APUNTADO","RECIBIDO","HECHO"]); // los q
 const SIN_CERRAR_CONV = new Set(["ASIGNADO","APUNTADO","RECIBIDO"]);    // pasado el curso, estos se tienen que cerrar (Hecho o No presentado): Asignado, Puede y el Apuntado de antes
 const CAB_ALUMNOS = ["APELLIDOS","NOMBRE","DEPARTAMENTO","PERFIL PRL","ENCARGADO","TURNO","ESTADO","MOTIVO","FECHA"];
 
-async function elegirCarpetaFormacion(){ const h = await window.showDirectoryPicker({ mode:"readwrite" }); await kvSet("carpetaFormacion", h); FORM_GUARDADA = h.name; usarCarpetaFormacion(h); render(); }
+async function elegirCarpetaFormacion(){ const h = await pedirCarpeta(); await kvSet("carpetaFormacion", h); FORM_GUARDADA = h.name; usarCarpetaFormacion(h); render(); }
 async function abrirCarpetaFormacionGuardada(){ // con un clic: Edge puede pedir el permiso
   const h = await kvGet("carpetaFormacion"); if(!h) return false;
   let perm = "denied"; try{ perm = await h.queryPermission({ mode:"readwrite" }); if(perm !== "granted") perm = await h.requestPermission({ mode:"readwrite" }); }catch(e){ return false; }
@@ -4491,7 +4505,7 @@ function errorCurso(e){ // los errores de Edge vienen en inglés: el más normal
 }
 function bindCursosAnio(cont){
   const aviso2 = e => { const t = errorCurso(e); if(t) aviso(t, true); };
-  const bE = $("#form-elegir"); if(bE) bE.onclick = () => elegirCarpetaFormacion().catch(aviso2);
+  const bE = $("#form-elegir"); if(bE) bE.onclick = () => elegirCarpetaFormacion().catch(e => e && e.name === "CarpetaCancelada" ? avisoCarpeta(e) : aviso2(e));
   const bG = $("#form-guardada"); if(bG) bG.onclick = () => abrirCarpetaFormacionGuardada().then(ok => { if(!ok) aviso("Edge no ha dado permiso para esa carpeta. Pulsa «Elegir la carpeta de formación».", true); render(); }).catch(aviso2);
   const bA = $("#form-actualizar"); if(bA) bA.onclick = () => { FORM_INDICE = null; render(); };
   const bSo = $("#form-solo-sin"); if(bSo) bSo.onclick = () => { SOLO_SIN_RELLENAR = !SOLO_SIN_RELLENAR; render(); };
@@ -5465,7 +5479,7 @@ function render(){
   const ndc = $("#nd-cancelar"); if(ndc) ndc.onclick = () => { ND_FOTOS_CAM = []; EQ_NUEVA_DEF = false; EQ_FORM = null; render(); };
   const ndg = $("#nd-guardar"); if(ndg) ndg.onclick = async () => { const descNueva = (($("#nd-desc")||{}).value||"").trim(); /* va también al historial de Revisiones */ ndg.disabled = true; ndg.textContent = "Guardando…"; let ok = false; try{ ok = await guardarNuevaDef(); }catch(err){ aviso("Error: " + err.message); } if(ok){ const f = EQ_FORM; EQ_NUEVA_DEF = false; EQ_FORM = null; if(f && f.desde1215 && f.clave){ try{ await marcarRevision(f.clave, "DEFICIENCIA", descNueva); }catch(err){ aviso("La deficiencia se ha guardado, pero no el estado: " + err.message); } } render(); } else { ndg.disabled = false; ndg.textContent = "Guardar deficiencia"; } }; // si no se guarda, el formulario se queda con lo escrito y las fotos
   const eqd = $("#eq-fdocs"); if(eqd) eqd.onchange = () => { EQ_FILTROS.docs = eqd.checked; render(); };
-  const eqc = $("#eq-carpeta"); if(eqc) eqc.onclick = () => elegirCarpetaMaquinas().catch(e => { if(e.name !== "AbortError") aviso(e.message); });
+  const eqc = $("#eq-carpeta"); if(eqc) eqc.onclick = () => elegirCarpetaMaquinas().catch(avisoCarpeta);
   const eqx = $("#eq-excel"); if(eqx) eqx.onclick = () => { if(EXPORT_CURSOS) descargarXlsx(EXPORT_CURSOS.nombre, EXPORT_CURSOS.hoja, EXPORT_CURSOS.cabeceras, EXPORT_CURSOS.filas); };
   cont.querySelectorAll("tr[data-equipo]").forEach(tr => tr.onclick = e => { if(e.target.closest("a")) return; if(!EQUIPO_ACTUAL) VOLVER_Y_EQ = window.scrollY; EQUIPO_ACTUAL = EQ.equipos.find(x => x.clave === tr.dataset.equipo) || null; render(); window.scrollTo(0,0); });
   const bev = $("#btn-eq-volver"); if(bev) bev.onclick = () => { EQUIPO_ACTUAL = null; render(); const y = VOLVER_Y_EQ; requestAnimationFrame(() => window.scrollTo(0, y)); };
@@ -5718,7 +5732,7 @@ if(hayFSA()){
   $("#modo-carpeta").style.display = "block";
   const errC = $("#error-carpeta");
   window.__hayCarpeta = true;
-  $("#btn-carpeta").onclick = () => { errC.textContent = ""; elegirCarpeta().catch(e => { if(e && e.name === "AbortError") return; errC.textContent = e.message; }); };
+  $("#btn-carpeta").onclick = () => { errC.textContent = ""; elegirCarpeta().catch(e => { if(e && e.name === "CarpetaCancelada" && !e.tapada){ errC.innerHTML = `<span class="mini">${e.message}</span>`; return; } errC.textContent = (e && e.message) || String(e); }); };
   kvGet("carpeta").then(async h => { if(!h) return;
     const b = $("#btn-carpeta-guardada"); b.textContent = `Abrir la carpeta guardada: ${h.name}`; b.style.display = "inline-block"; b.onclick = () => { errC.textContent = ""; abrirCarpetaGuardada().catch(e => errC.textContent = e.message); };
     // si Edge ya tiene el permiso guardado ("Permitir en cada visita"), entra sola sin tocar nada
