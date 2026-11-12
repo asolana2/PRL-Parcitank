@@ -3775,6 +3775,7 @@ let FORM_INDICE = null;    // null = sin leer; [{ nombre, handle, num, orden, ar
 let FORM_SUELTOS = [];     // archivos sueltos en la carpeta del año, fuera de las carpetas de los cursos
 let FORM_LEYENDO = false;
 let CURSO_ANIO = null;     // carpeta abierta en «Cursos del año» (su nombre)
+let LISTA_CURSOS = [];     // v2.70: las carpetas de la lista de «Cursos del año», en el orden en que se ven al abrir un curso (para las flechas ← → del curso)
 let CONV_ACTUAL = null;    // fecha elegida en el Organizador (nombre de su carpeta)
 let NUEVA_FECHA = null;    // formulario de los datos del curso: { modo:"nueva"|"rellenar"|"cambiar", carpeta, curso, libre, num, dias:[iso], horarios:{iso:{de,a}}, horas, texto, cancelado }
 let VOLVER_Y_CURSO = 0;
@@ -4265,7 +4266,7 @@ function vistaCursosAnio(){
   const c2 = !CURSO_ANIO || !FORM_INDICE ? null : (FORM_INDICE.find(x => x.nombre === CURSO_ANIO) // renombrada a mano: se encuentra por su número, si no hay dudas
     || (CURSO_ANIO_NUM != null ? unico(FORM_INDICE.filter(x => x.conv && x.conv.num === CURSO_ANIO_NUM)) : null)
     || (CURSO_ANIO_NUM == null && numCarpeta(CURSO_ANIO) != null ? unico(FORM_INDICE.filter(x => numeroDe(x) === numCarpeta(CURSO_ANIO))) : null));
-  if(c2){ CURSO_ANIO = c2.nombre; CURSO_ANIO_NUM = numeroDe(c2); return vistaFichaCurso(c2); }
+  if(c2){ const iL = LISTA_CURSOS.indexOf(CURSO_ANIO); if(iL >= 0 && c2.nombre !== CURSO_ANIO) LISTA_CURSOS[iL] = c2.nombre; CURSO_ANIO = c2.nombre; CURSO_ANIO_NUM = numeroDe(c2); return vistaFichaCurso(c2); }
   if(CURSO_ANIO && FORM_INDICE){ aviso(`No encuentro la carpeta «${CURSO_ANIO}» (¿la has movido o le has cambiado el número?).`, "naranja"); CURSO_ANIO = null; CURSO_ANIO_NUM = null; }
   let html = `<div class="bloque"><h3>Cursos del año${CARPETA_FORM ? ` <span class="cnt">${escEq(CARPETA_FORM.name)}${FORM_INDICE ? ` · ${FORM_INDICE.length} carpeta${FORM_INDICE.length===1?"":"s"}` : ""}</span>` : ""}<span class="der no-imprimir">${CARPETA_FORM && FORM_INDICE && FORM_INDICE.length ? `<button class="btn2" id="form-resumen">Resumen del año en Excel</button><button class="btn2" id="form-absentismo" title="Excel con una fila por cada No presentado de los cursos del año y, debajo, cuántas veces ha faltado cada uno">Absentismo</button>` : ""}${CARPETA_FORM ? `<button class="btn2" id="form-actualizar">Actualizar</button>` : ""}<button class="btn2" id="form-elegir">${CARPETA_FORM ? "Elegir otra carpeta" : "Elegir la carpeta de formación"}</button></span></h3>`;
   if(!CARPETA_FORM) return html + `<div class="vacio">Elige la carpeta de formación del año (por ejemplo «Formación 2026»), como hiciste con MÁQUINAS. Cuando Edge pregunte, elige «Permitir en cada visita».${FORM_GUARDADA ? ` <button class="btn2" id="form-guardada">Abrir la carpeta guardada: ${escEq(FORM_GUARDADA)}</button>` : ""}</div></div>`;
@@ -4337,10 +4338,18 @@ function absentismoAnio(){ // «Absentismo»: una fila por cada No presentado (t
   if(noApuntados) dudas.push(`${noApuntados === 1 ? "el «No apuntado» de antes no cuenta" : `los ${noApuntados} «No apuntado» de antes no cuentan`}: si fue una falta, cámbialo a No presentado en su curso`);
   return { cab, filas, n:faltas.length, personas:veces.size, cancelados, dudas };
 }
+/* v2.70: flechas ← → del curso. Se mueven por la lista de «Cursos del año» tal como se veía al abrirlo (su orden y «Ver solo esas»);
+   si el curso se abrió desde otro sitio (el Organizador) o ya no está en esa lista, por todas las carpetas en el orden de siempre. Las carpetas que ya no existen no cuentan */
+function listaCursosFlechas(c){
+  const hay = new Set((FORM_INDICE || []).map(x => x.nombre)); let l = LISTA_CURSOS.filter(n => hay.has(n));
+  if(!l.includes(c.nombre)) l = LISTA_CURSOS = (FORM_INDICE || []).map(x => x.nombre);
+  return l;
+}
 function vistaFichaCurso(c){
   const v = c.conv, ed = editable(), f = formacionDe(v), cancel = cursoCancelado(c), activo = v && !cancel, pasado = pasadoConv(v), ult = ultimoDia(v), bloq = bloqueoCurso(c, !v);
   const form = ed && NUEVA_FECHA && NUEVA_FECHA.carpeta === c.nombre && NUEVA_FECHA.modo !== "nueva";
-  let html = `<button class="volver no-imprimir" id="curso-volver">← volver a los cursos del año</button>
+  const listaC = listaCursosFlechas(c), iC = listaC.indexOf(c.nombre);
+  let html = `<button class="volver no-imprimir" id="curso-volver">← volver a los cursos del año</button>${iC >= 0 && listaC.length > 1 ? `<span class="no-imprimir" style="margin-left:.6rem; display:inline-flex; gap:.35rem; align-items:center"><button class="btn2" id="curso-ant" ${iC === 0 ? "disabled" : ""} title="curso anterior de la lista">←</button><span class="mini">${iC+1} de ${listaC.length}</span><button class="btn2" id="curso-sig" ${iC === listaC.length-1 ? "disabled" : ""} title="curso siguiente de la lista">→</button></span>` : ""}
     <div class="bloque ficha-curso"><h3>${escEq(c.nombre)}<span class="der no-imprimir"><button class="btn2" id="curso-actualizar">Actualizar</button>${c.alumnosH ? `<button class="btn2" id="curso-descargar">Descargar «Alumnos»</button>` : ""}${ed && v && !cancel && !bloq ? `<button class="btn2" id="curso-adecco" title="Rellena tu «Formato_Adecco.xlsx» con los alumnos de esta fecha y lo guarda en la carpeta del curso">Listado ADECCO</button>` : ""}${ed && !bloq ? (v ? `<button class="btn2" id="curso-cambiar-dias">Cambiar los datos del curso</button>${v.estado === "CANCELADO" ? `<button class="btn2" id="curso-descancelar">Ya no está cancelado</button>` : `<button class="btn2" id="curso-cancelar">Cancelado</button>`}` : (pareceCurso(c.nombre) ? `<button class="btn2 naranja" id="curso-rellenar">Rellenar este curso</button>` : "")) : ""}</span></h3>`;
   for(const x of problemasCurso(c)) html += `<div class="fe-franja${x.nivel === "rojo" ? " rojo" : ""}">${x.nivel === "rojo" ? "⚠" : "📁"} ${escEq(x.txt.charAt(0).toUpperCase() + x.txt.slice(1))}.${/^la carpeta tiene que llamarse/.test(x.txt) ? " Cámbiale el nombre a mano en el explorador y pulsa «Actualizar»." : ""}</div>`;
   if(v){ const h = horasCurso(c), conHorario = horariosDe(v).some(Boolean);
@@ -4522,7 +4531,10 @@ function bindCursosAnio(cont){
     if(!r.n){ aviso(`No hay ningún No presentado en los cursos de «${CARPETA_FORM.name}»${canc}.${ojo}`, ojo ? "naranja" : undefined); return; }
     descargarLibro(`${codReg() ? codReg().cod + "_" : ""}Absentismo_${sinAcentos(CARPETA_FORM.name).replace(/[^A-Za-z0-9]+/g, "_")}_${new Date().toISOString().slice(0,10)}.xlsx`, [{ nombre:"Absentismo", cabeceras:r.cab, filas:r.filas, anchos:[34,26,24,40,34,50] }]);
     aviso(`Descargado: ${r.n} falta${r.n === 1 ? "" : "s"} de ${r.personas} persona${r.personas === 1 ? "" : "s"}${canc}.${ojo}`, ojo ? "naranja" : undefined); };
-  cont.querySelectorAll("tr[data-curso-anio], [data-abrir-curso]").forEach(el => el.onclick = () => { CURSO_ANIO = el.dataset.cursoAnio || el.dataset.abrirCurso; CURSO_ANIO_NUM = null; NUEVA_FECHA = null; BUSCAR_CURSO = ""; VOLVER_Y_CURSO = window.scrollY; render(); window.scrollTo(0,0); });
+  cont.querySelectorAll("tr[data-curso-anio], [data-abrir-curso]").forEach(el => el.onclick = () => { LISTA_CURSOS = [...document.querySelectorAll("tr[data-curso-anio]")].map(tr => tr.dataset.cursoAnio); CURSO_ANIO = el.dataset.cursoAnio || el.dataset.abrirCurso; CURSO_ANIO_NUM = null; NUEVA_FECHA = null; BUSCAR_CURSO = ""; VOLVER_Y_CURSO = window.scrollY; render(); window.scrollTo(0,0); });
+  for(const [id, paso] of [["#curso-ant", -1], ["#curso-sig", 1]]){ const bF = $(id); if(bF) bF.onclick = () => {
+    const actual = FORM_INDICE && FORM_INDICE.find(x => x.nombre === CURSO_ANIO); if(!actual) return; const l = listaCursosFlechas(actual), otro = l[l.indexOf(actual.nombre) + paso]; if(!otro) return;
+    CURSO_ANIO = otro; CURSO_ANIO_NUM = null; NUEVA_FECHA = null; BUSCAR_CURSO = ""; render(); window.scrollTo(0,0); }; }
   const bV = $("#curso-volver"); if(bV) bV.onclick = () => { CURSO_ANIO = null; CURSO_ANIO_NUM = null; NUEVA_FECHA = null; render(); const y = VOLVER_Y_CURSO; requestAnimationFrame(() => window.scrollTo(0, y)); };
   const cAct = () => cursoPorNombre(CURSO_ANIO);
   const bAc = $("#curso-actualizar"); if(bAc) bAc.onclick = () => { FORM_INDICE = null; NUEVA_FECHA = null; render(); }; // si se ha renombrado, se encuentra por su número
@@ -4623,7 +4635,7 @@ function bindCursosAnio(cont){
   // Organizador
   cont.querySelectorAll(".conv-fecha[data-conv]").forEach(b => b.onclick = () => { CONV_ACTUAL = CONV_ACTUAL === b.dataset.conv ? null : b.dataset.conv; render(); });
   const bN = $("#conv-nueva"); if(bN) bN.onclick = () => { NUEVA_FECHA = NUEVA_FECHA && NUEVA_FECHA.modo === "nueva" ? null : { modo:"nueva", curso:FORMACION_ACTUAL, libre:false, dias:[], horarios:{}, horas:"", texto:nombreCursoBonito(FORMACION_ACTUAL), cancelado:false }; render(); const d = $("#nf-dia"); if(d) d.focus(); };
-  const bVer = $("#conv-ver"); if(bVer) bVer.onclick = () => { CURSO_ANIO = CONV_ACTUAL; CURSO_ANIO_NUM = null; SUB_CURSOS = "anio"; NUEVA_FECHA = null; render(); window.scrollTo(0,0); };
+  const bVer = $("#conv-ver"); if(bVer) bVer.onclick = () => { LISTA_CURSOS = []; CURSO_ANIO = CONV_ACTUAL; CURSO_ANIO_NUM = null; SUB_CURSOS = "anio"; NUEVA_FECHA = null; render(); window.scrollTo(0,0); };
   const bAs = $("#conv-asignar"); if(bAs) bAs.onclick = async () => { const c = cursoPorNombre(CONV_ACTUAL); if(!c || !c.conv) return;
     const m = marcas("curso|" + FORMACION_ACTUAL); const ya = new Set(c.conv.alumnos.map(a => clavePersonaConv(a.apellidos, a.nombre)));
     const otras = new Map(); for(const o of convsDeCurso(c.conv.curso, true)) if(o !== c) for(const a of o.conv.alumnos) if(ocupaEn(o, a)) otras.set(clavePersonaConv(a.apellidos, a.nombre), o.nombre);
