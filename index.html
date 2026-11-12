@@ -418,8 +418,9 @@ td.marca{width:1.5rem;}
 }
 /* pie de los papeles (v2.70): va en el margen de abajo de cada hoja que imprime la app. Antes era un bloque fijo que la regla de después (.print-pie{display:none}) volvía a esconder, y no salía en ningún papel.
    En las hojas de las tarjetas no sale (son para el operario y ya llevan «Servicio de Prevención»); en su hoja de recibí, sí */
-@page{ @bottom-left{ content:"Generado desde PRL Parcitank · uso interno del Servicio de Prevención"; font-family:"Segoe UI", Arial, sans-serif; font-size:7.5pt; color:#69707A; } }
-@page tarjetas{ @bottom-left{ content:none; } }
+@page{ @bottom-left{ content:"Generado desde PRL Parcitank · uso interno del Servicio de Prevención"; font-family:"Segoe UI", Arial, sans-serif; font-size:7.5pt; color:#69707A; }
+  @bottom-right{ content:"Hoja " counter(page) " de " counter(pages); font-family:"Segoe UI", Arial, sans-serif; font-size:7.5pt; color:#69707A; } } /* con pie propio, Edge quita su número de hoja: lo pone la app */
+@page tarjetas{ @bottom-left{ content:none; } @bottom-right{ content:none; } }
 @media print{ body:has(.carnets) .print-cab, main:has(.carnets){page:tarjetas;} .recibi{page:recibi;} } /* toda la pantalla de tarjetas va sin pie (así no se añade ningún salto de hoja); la hoja de recibí, con él */
 @media (max-width:720px){
   nav .buscador input{width:100%;}
@@ -1910,7 +1911,7 @@ let ND_SEC = ""; // sección elegida en el formulario de nueva deficiencia (para
 let MAT = null;            // { escaleras:[], historial:[], secciones:[], nombre, fechaArchivo }
 let ESC_ACTUAL = null;     // código de la escalera con la ficha abierta
 let ESC_PEGAR = null;      // { texto, analisis } panel "Pegar revisión"
-let ESC_ALTA = false;      // v2.70: formulario «＋ Nueva escalera» abierto
+let ESC_ALTA = null;       // v2.70: formulario «＋ Nueva escalera» abierto: lo escrito (borrador), para no perderlo al ir y volver
 let ESC_RESULTADO = null;  // lo que hay que grabar tras guardar una revisión pegada
 let ESC_FOTOS = null;      // { porCodigo: Map, porId: Map } índice de la carpeta ESCALERAS (null = sin leer, false = no hay carpeta)
 const ESC_URL = {};        // nombre de foto -> URL para enseñarla
@@ -2051,14 +2052,14 @@ function vistaFichaEscalera(e){
     ${e.hoja === "H" ? `<div class="mini" style="margin-top:.6rem; color:var(--muted)">Está en el Historial: solo para consultar. Si aparece, va en el bloque de la revisión como ALTA | ANTES: ${escEq(e.id || e.codigo)}${e.codigo ? ` (o ${e.codigo} | APTO)` : ""}.</div>` : ""}
   </div>`;
   if(editableEsc() && e.hoja === "E"){
-    const secOpts = MAT.secciones.map(x => `<option ${x===e.seccion?"selected":""}>${escEq(x)}</option>`).join("");
+    const secOpts = (MAT.secciones.includes(e.seccion) ? "" : (e.seccion ? `<option selected>${escEq(e.seccion)}</option>` : `<option value="" selected>— sin sección —</option>`)) + MAT.secciones.map(x => `<option ${x===e.seccion?"selected":""}>${escEq(x)}</option>`).join(""); // v2.70: si su sección no está tal cual en la lista, sale la suya (antes salía la primera y al guardar se la cambiaba)
     html += `<div class="bloque no-imprimir"><h3>Editar ${e.codigo}</h3><div class="editor esc-editor">
       <label>Sección<select id="esc-f-sec">${secOpts}<option value="__otra">Otra…</option></select></label><label id="esc-f-otra-l" style="display:none">Nombre de la sección<input id="esc-f-otra" type="text"></label>
       <label>Tipo<input id="esc-f-tipo" type="text" value="${escEq(e.tipo)}"></label><label>Marca<input id="esc-f-marca" type="text" value="${escEq(e.marca)}"></label><label>Modelo<input id="esc-f-modelo" type="text" value="${escEq(e.modelo)}"></label><label>Altura<input id="esc-f-altura" type="text" value="${escEq(e.altura)}"></label>
-      <label>Código de barras<input id="esc-f-barras" type="text" value="${escEq(e.barras)}"></label><label>Lote<input id="esc-f-lote" type="text" value="${escEq(e.lote)}"></label><label>Nº de placa<input id="esc-f-placa" type="text" value="${escEq(e.placa)}"></label><label>Fecha de fabricación<input id="esc-f-fab" type="date" value="${e.fab ? ISO(e.fab) : ""}"></label>
+      <label>Código de barras<input id="esc-f-barras" type="text" value="${escEq(e.barras)}"></label><label>Lote<input id="esc-f-lote" type="text" value="${escEq(e.lote)}"></label><label>Nº de placa<input id="esc-f-placa" type="text" value="${escEq(e.placa)}"></label><label>Fecha de fabricación<input id="esc-f-fab" type="date" min="1900-01-01" max="2100-12-31" value="${e.fab ? ISO(e.fab) : ""}"></label>
       <label>Estado<select id="esc-f-est">${ESTADOS_ESC.map(x => `<option ${x===e.estado?"selected":""}>${x}</option>`).join("")}${ESTADOS_ESC.includes(e.estado) || !e.estado ? "" : `<option selected>${escEq(e.estado)}</option>`}</select></label>
       <label>Resultado<select id="esc-f-res">${["APTO","NO APTO"].map(x => `<option ${x===e.resultado?"selected":""}>${x}</option>`).join("")}${e.resultado && !["APTO","NO APTO"].includes(e.resultado) ? `<option selected>${escEq(e.resultado)}</option>` : ""}</select></label>
-      <label>Última revisión<input id="esc-f-ult" type="date" value="${e.ultima ? ISO(e.ultima) : ""}"></label>
+      <label>Última revisión<input id="esc-f-ult" type="date" min="1900-01-01" max="2100-12-31" value="${e.ultima ? ISO(e.ultima) : ""}"></label>
       <label>Grabada<select id="esc-f-grab"><option ${e.grabada?"":"selected"}>NO</option><option ${e.grabada?"selected":""}>SI</option></select></label>
       <label style="flex-basis:100%">Observaciones<textarea id="esc-f-obs" rows="3" style="width:100%">${escEq(e.obs)}</textarea></label>
       <button class="primario" id="esc-f-guardar">Guardar cambios</button></div></div>`;
@@ -2255,6 +2256,7 @@ async function escribirMaterial(prepara, comprueba){
     { const filas = [...xml.matchAll(/<row\b[^>]*?\br="(\d+)"[^>]*?>(?=[\s\S]*?<c\b)/g)].map(m => +m[1]); const ultima = filas.length ? Math.max(...filas) : 1; // el filtro de Excel tiene que llegar hasta la última fila
       const f1 = xml.match(/<row\b[^>]*?\br="1"[^>]*>([\s\S]*?)<\/row>/); const colsF1 = f1 ? [...f1[1].matchAll(/<c\b[^>]*?\br="([A-Z]+)1"/g)].map(m => letraIdx(m[1])) : []; const ultCol = colsF1.length ? colLetra(Math.max(...colsF1)) : null;
       xml = xml.replace(/(<autoFilter ref="[A-Z]+\d+:)([A-Z]+)(\d+)(")/, (x, a, L, d, b) => `${a}${ultCol && letraIdx(ultCol) > letraIdx(L) ? ultCol : L}${ultima}${b}`).replace(/(<dimension ref="[A-Z]+\d+:[A-Z]+)(\d+)("\/>)/, (x, a, d, b) => `${a}${ultima}${b}`); }
+    if(new DOMParser().parseFromString(xml, "application/xml").getElementsByTagName("parsererror").length) throw new Error(`la hoja ${nombre} quedaría dañada (¿hay algún carácter raro pegado de otro programa?); no se ha guardado nada.`); // v2.70
     reemplazos[ruta] = xml;
   }
   if(!Object.keys(reemplazos).length) return false;
@@ -2271,25 +2273,29 @@ async function escribirMaterial(prepara, comprueba){
 /* v2.70: los datos de la escalera que se escriben a mano (ficha y «＋ Nueva escalera»): columna del Excel, nombre en pantalla y dónde lo guarda la app al leer */
 const DATOS_ESC = [ { col:"TIPO", id:"tipo", t:"Tipo", prop:"tipo" }, { col:"MARCA", id:"marca", t:"Marca", prop:"marca" }, { col:"MODELO", id:"modelo", t:"Modelo", prop:"modelo" }, { col:"ALTURA", id:"altura", t:"Altura", prop:"altura" },
   { col:"CODIGO BARRAS", id:"barras", t:"Código de barras", prop:"barras" }, { col:"LOTE", id:"lote", t:"Lote", prop:"lote" }, { col:"Nº PLACA", id:"placa", t:"Nº de placa", prop:"placa" } ];
+const seccionEsc = (sel, otra) => { if(sel !== "__otra") return sel; const t = otra.trim(); if(!t) return ""; return MAT.secciones.find(x => normId(x) === normId(t)) || t.toUpperCase(); }; // «Otra…»: si ya existe escrita de otra forma (sin tilde…), la que ya hay
+const FECHA_OK = v => !v || (/^\d{4}-\d{2}-\d{2}$/.test(v) && +v.slice(0,4) >= 1900 && +v.slice(0,4) <= 2100);
 const siguienteCodigoEsc = () => { let maxN = 0; for(const x of MAT.escaleras.concat(MAT.historial)){ const n = numEsc(x.codigo); if(n) maxN = Math.max(maxN, n); } return "E" + (maxN + 1); };
 /* «＋ Nueva escalera»: alta a mano, sin pasar por «Pegar revisión». Solo la Sección es obligatoria; el código lo pone la app (el siguiente al más alto) y entra sin grabar */
 function panelAltaEsc(){
+  const B = ESC_ALTA || {}, val = id => escEq(B[id] ?? ""), sel = (id, x, def) => (B[id] ?? def) === x ? "selected" : "";
   const lista = (id, prop) => `<datalist id="${id}">${[...new Set(MAT.escaleras.map(x => x[prop]).filter(Boolean))].sort().map(v => `<option value="${escEq(v)}">`).join("")}</datalist>`;
   return `<div class="bloque no-imprimir esc-alta"><h3>Nueva escalera <span class="cnt">será la ${siguienteCodigoEsc()}</span><span class="der"><button class="btn2" id="esc-a-cancelar">Cancelar</button></span></h3><div class="editor esc-editor">
-      <label>Sección<select id="esc-a-sec"><option value="">— elige —</option>${MAT.secciones.map(x => `<option>${escEq(x)}</option>`).join("")}<option value="__otra">Otra…</option></select></label><label id="esc-a-otra-l" style="display:none">Nombre de la sección<input id="esc-a-otra" type="text"></label>
-      ${DATOS_ESC.map(d => `<label>${d.t}<input id="esc-a-${d.id}" type="text"${d.id === "tipo" || d.id === "marca" ? ` list="esc-dl-${d.id}"` : ""}></label>`).join("")}${lista("esc-dl-tipo", "tipo")}${lista("esc-dl-marca", "marca")}
-      <label>Fecha de fabricación<input id="esc-a-fab" type="date"></label>
-      <label>Estado<select id="esc-a-est"><option selected>EN USO</option><option>FUERA DE USO</option></select></label>
-      <label>Resultado<select id="esc-a-res"><option selected>APTO</option><option>NO APTO</option></select></label>
-      <label>Última revisión<input id="esc-a-ult" type="date" value="${ISO(HOY_UTC)}"></label>
-      <label style="flex-basis:100%">Observaciones<textarea id="esc-a-obs" rows="2" style="width:100%"></textarea></label>
+      <label>Sección<select id="esc-a-sec"><option value="">— elige —</option>${MAT.secciones.map(x => `<option ${sel("esc-a-sec", x, "")}>${escEq(x)}</option>`).join("")}<option value="__otra" ${sel("esc-a-sec", "__otra", "")}>Otra…</option></select></label><label id="esc-a-otra-l" style="${B["esc-a-sec"] === "__otra" ? "" : "display:none"}">Nombre de la sección<input id="esc-a-otra" type="text" value="${val("esc-a-otra")}"></label>
+      ${DATOS_ESC.map(d => `<label>${d.t}<input id="esc-a-${d.id}" type="text" value="${val("esc-a-" + d.id)}"${d.id === "tipo" || d.id === "marca" ? ` list="esc-dl-${d.id}"` : ""}></label>`).join("")}${lista("esc-dl-tipo", "tipo")}${lista("esc-dl-marca", "marca")}
+      <label>Fecha de fabricación<input id="esc-a-fab" type="date" min="1900-01-01" max="2100-12-31" value="${val("esc-a-fab")}"></label>
+      <label>Estado<select id="esc-a-est"><option ${sel("esc-a-est", "EN USO", "EN USO")}>EN USO</option><option ${sel("esc-a-est", "FUERA DE USO", "EN USO")}>FUERA DE USO</option></select></label>
+      <label>Resultado<select id="esc-a-res"><option ${sel("esc-a-res", "APTO", "APTO")}>APTO</option><option ${sel("esc-a-res", "NO APTO", "APTO")}>NO APTO</option></select></label>
+      <label>Última revisión<input id="esc-a-ult" type="date" min="1900-01-01" max="2100-12-31" value="${escEq(B["esc-a-ult"] ?? ISO(HOY_UTC))}"></label>
+      <label style="flex-basis:100%">Observaciones<textarea id="esc-a-obs" rows="2" style="width:100%">${val("esc-a-obs")}</textarea></label>
       <button class="primario" id="esc-a-guardar">Guardar escalera</button></div>
     <div class="mini" style="margin-top:.4rem">Solo la sección es obligatoria. El código lo pone la app y la escalera entra sin grabar: al guardar te recuerda el código que hay que grabarle.</div></div>`;
 }
 async function guardarAltaEsc(){
   const q = id => document.getElementById(id);
-  const sec = q("esc-a-sec").value === "__otra" ? q("esc-a-otra").value.trim().toUpperCase() : q("esc-a-sec").value;
+  const sec = seccionEsc(q("esc-a-sec").value, q("esc-a-otra").value);
   if(!sec){ aviso(q("esc-a-sec").value === "__otra" ? "Escribe el nombre de la sección." : "Elige la sección de la escalera.", true); return false; }
+  for(const [id, t] of [["esc-a-fab", "La fecha de fabricación"], ["esc-a-ult", "La fecha de la última revisión"]]) if(!FECHA_OK(q(id).value)){ aviso(`${t} no es válida.`, true); return false; }
   const vals = { "SECCION": sec, "ESTADO": q("esc-a-est").value, "RESULTADO": q("esc-a-res").value, "GRABADA": "NO", "OBSERVACIONES": q("esc-a-obs").value.trim() };
   for(const d of DATOS_ESC) vals[d.col] = q("esc-a-" + d.id).value.trim();
   const fechas = { "FECHA FABRICACION": q("esc-a-fab").value, "ULTIMA REVISION": q("esc-a-ult").value };
@@ -2308,31 +2314,35 @@ async function guardarAltaEsc(){
     if(nuevo.escaleras.length !== MAT.escaleras.length + 1) throw new Error(`Después de guardar hay ${nuevo.escaleras.length} escaleras y tendría que haber ${MAT.escaleras.length + 1}.`);
   });
   const desc = [vals["TIPO"], vals["MARCA"], vals["MODELO"], sec].filter(Boolean).join(" · ");
-  ESC_ALTA = false; ESC_RESULTADO = { titulo:"Escalera nueva guardada", grabar:[{ codigo, texto: desc || "escalera nueva" }], resumen: sinColumna.length ? `No se ha escrito ${sinColumna.join(", ")}: la hoja Escaleras no tiene esa columna.` : "1 alta" };
+  ESC_ALTA = null; ESC_RESULTADO = { titulo:"Escalera nueva guardada", grabar:[{ codigo, texto: desc || "escalera nueva" }], resumen: sinColumna.length ? `No se ha escrito ${sinColumna.join(", ")}: la hoja Escaleras no tiene esa columna.` : "1 alta" };
   aviso(`${codigo} guardada. Hay 1 código por grabar.`, "naranja");
   return true;
 }
 /* ficha: guardar lo editado a mano */
 async function guardarFichaEsc(e){
   const q = id => document.getElementById(id);
-  const sec = q("esc-f-sec").value === "__otra" ? q("esc-f-otra").value.trim().toUpperCase() : q("esc-f-sec").value;
-  if(!sec){ aviso("Escribe el nombre de la sección.", true); return; }
+  const sec = seccionEsc(q("esc-f-sec").value, q("esc-f-otra").value);
+  if(!sec && q("esc-f-sec").value === "__otra"){ aviso("Escribe el nombre de la sección.", true); return; }
+  if(![["esc-f-ult", "La fecha de la última revisión"], ["esc-f-fab", "La fecha de fabricación"]].every(([id, t]) => { const i = q(id); if(!i || FECHA_OK(i.value)) return true; aviso(`${t} no es válida.`, true); return false; })) return;
   const nuevos = { "SECCION": sec, "ESTADO": q("esc-f-est").value, "RESULTADO": q("esc-f-res").value, "GRABADA": q("esc-f-grab").value, "OBSERVACIONES": q("esc-f-obs").value.trim() };
   const ult = q("esc-f-ult").value;
   const antes = { "SECCION": e.seccion, "ESTADO": e.estado, "RESULTADO": e.resultado, "GRABADA": e.grabada ? "SI" : "NO", "OBSERVACIONES": e.obs };
-  for(const [k, id, v] of DATOS_ESC.map(d => [d.col, "esc-f-" + d.id, e[d.prop]])){ const i = q(id); if(i){ nuevos[k] = i.value.trim(); antes[k] = v; } } // v2.70: tipo, marca, modelo, altura, código de barras, lote y nº de placa
-  const fab = q("esc-f-fab") ? q("esc-f-fab").value : null, cambiaFab = fab !== null && fab !== (e.fab ? ISO(e.fab) : "");
+  for(const [k, id, v] of DATOS_ESC.map(d => [d.col, "esc-f-" + d.id, e[d.prop]])){ const i = q(id); if(i && i.value !== i.defaultValue.replace(/[\r\n]/g, "")){ nuevos[k] = i.value.trim(); antes[k] = v; } } // v2.70: tipo, marca, modelo, altura, código de barras, lote y nº de placa
+  const fab = q("esc-f-fab") ? q("esc-f-fab").value : null, cambiaFab = fab !== null && fab !== q("esc-f-fab").defaultValue;
   const cambiosN = Object.keys(nuevos).filter(k => nuevos[k] !== antes[k]); const cambiaFecha = ult !== (e.ultima ? ISO(e.ultima) : "");
   if(!cambiosN.length && !cambiaFecha && !cambiaFab){ aviso("No has cambiado nada."); return; }
+  const faltan = [];
   try{
-    await escribirMaterial(async libro => { const h = await libro.hoja("Escaleras"); const c = CAB(h); const fila = h[e.fila - 1];
+    const escrito = await escribirMaterial(async libro => { const h = await libro.hoja("Escaleras"); const c = CAB(h); const fila = h[e.fila - 1];
       if(!fila || String(fila[colEq(c,"CODIGO")]||"").trim().toUpperCase() !== e.codigo) throw new Error("La fila de esta escalera ha cambiado; pulsa Actualizar.");
-      const cambios = cambiosN.map(k => ({ fila:e.fila, col:colEq(c, k), valor:nuevos[k] })).filter(x => x.col >= 0);
+      const cambios = cambiosN.map(k => ({ fila:e.fila, col:colEq(c, k), valor:nuevos[k], k })).filter(x => x.col >= 0 || (faltan.push(x.k), false));
+      if(cambiaFecha && colEq(c, "ULTIMA REVISION") < 0) faltan.push("ÚLTIMA REVISIÓN"); if(cambiaFab && colEq(c, "FECHA FABRICACION") < 0) faltan.push("FECHA FABRICACIÓN");
       if(cambiaFecha && colEq(c, "ULTIMA REVISION") >= 0) cambios.push({ fila:e.fila, col:colEq(c, "ULTIMA REVISION"), valor: ult ? serialDeFecha(ult) : null, fecha: !!ult });
       if(cambiaFab && colEq(c, "FECHA FABRICACION") >= 0) cambios.push({ fila:e.fila, col:colEq(c, "FECHA FABRICACION"), valor: fab ? serialDeFecha(fab) : null, fecha: !!fab });
       return { Escaleras:{ cambios, borrar:[] } }; });
-    aviso(`${e.codigo} guardada.`);
-  }catch(err){ aviso("No se ha guardado: " + err.message, true); }
+    if(faltan.length) aviso(`${e.codigo}: no se ha escrito ${faltan.join(", ")}, porque la hoja Escaleras no tiene esa columna.`, "naranja");
+    if(escrito || !faltan.length) aviso(`${e.codigo} guardada.`);
+  }catch(err){ aviso("No se ha guardado: " + err.message, true); return; } // v2.70: si falla, lo escrito se queda en la ficha
   render();
 }
 function bindEscaleras(cont){
@@ -2340,9 +2350,10 @@ function bindEscaleras(cont){
   const v = $("#esc-volver"); if(v) v.onclick = () => { ESC_ACTUAL = null; render(); const y = VOLVER_Y_ESC; requestAnimationFrame(() => window.scrollTo(0, y)); };
   const s = $("#esc-f-sec"); if(s) s.onchange = () => { $("#esc-f-otra-l").style.display = s.value === "__otra" ? "" : "none"; };
   const g = $("#esc-f-guardar"); if(g) g.onclick = () => { const e = escPorKey(ESC_ACTUAL); if(e){ g.disabled = true; guardarFichaEsc(e).finally(() => { g.disabled = false; }); } }; // v2.70: tras «No has cambiado nada» o «Escribe el nombre de la sección» el botón se quedaba apagado
-  const ba = $("#esc-alta"); if(ba) ba.onclick = () => { ESC_ALTA = true; ESC_RESULTADO = null; render(); const i = $("#esc-a-sec"); if(i) i.focus(); };
-  const bac = $("#esc-a-cancelar"); if(bac) bac.onclick = () => { ESC_ALTA = false; render(); };
+  const ba = $("#esc-alta"); if(ba) ba.onclick = () => { ESC_ALTA = {}; ESC_RESULTADO = null; render(); const i = $("#esc-a-sec"); if(i) i.focus(); };
+  const bac = $("#esc-a-cancelar"); if(bac) bac.onclick = () => { ESC_ALTA = null; render(); };
   const sa = $("#esc-a-sec"); if(sa) sa.onchange = () => { $("#esc-a-otra-l").style.display = sa.value === "__otra" ? "" : "none"; };
+  cont.querySelectorAll(".esc-alta input, .esc-alta select, .esc-alta textarea").forEach(el => el.addEventListener(el.tagName === "SELECT" || el.type === "date" ? "change" : "input", () => { if(ESC_ALTA){ if(typeof ESC_ALTA !== "object") ESC_ALTA = {}; ESC_ALTA[el.id] = el.value; } })); // el borrador
   const bag = $("#esc-a-guardar"); if(bag) bag.onclick = async () => { bag.disabled = true; let hecho = false; try{ hecho = await guardarAltaEsc(); }catch(err){ aviso("No se ha guardado: " + err.message, true); } if(hecho) render(); else bag.disabled = false; };
   const bp = $("#esc-pegar"); if(bp) bp.onclick = () => { ESC_PEGAR = { texto:"", analisis:null }; ESC_RESULTADO = null; render(); const t = $("#esc-pegar-txt"); if(t) t.focus(); };
   const bc = $("#esc-pegar-cerrar"); if(bc) bc.onclick = () => { ESC_PEGAR = null; render(); };
@@ -2595,7 +2606,7 @@ async function elegirCarpetaMaquinas(){ const h = await pedirCarpeta(); CARPETA_
 async function abrirCarpetaMaquinasGuardada(){ const h = await kvGet("carpetaMaquinas"); if(!h) return false; let perm = await h.queryPermission({ mode:"readwrite" }); if(perm !== "granted") return false; CARPETA_MAQ = h; await indexarMaquinas(); if(!LOCAL || !LOCAL.equipos) await buscarEquiposEnMaquinas(); return true; }
 
 /* --- escritura --- */
-function serialDeFecha(iso){ const d = new Date(iso + "T00:00:00Z"); return Math.round(d.getTime()/86400000) + 25569; }
+function serialDeFecha(iso){ const d = new Date(iso + "T00:00:00Z"), y = d.getUTCFullYear(); if(isNaN(d.getTime()) || y < 1900 || y > 2200) throw new Error(`La fecha «${iso}» no es válida.`); return Math.round(d.getTime()/86400000) + 25569; } // v2.70: antes, con un año de 5 cifras, escribía NaN en el Excel
 async function escribirCeldas(cambios){ // [{fila, col, valor, formato}]
   if(DATOS && DATOS.local) return escribirCeldasLocal(cambios);
   throw new Error("No hay ningún Excel abierto desde la carpeta.");
@@ -2632,7 +2643,7 @@ function zipStored(entradas){ // [{nombre, texto}]
   const eocd = new Uint8Array([0x50,0x4B,5,6, ...u16(0), ...u16(0), ...u16(entradas.length), ...u16(entradas.length), ...u32(cdSize), ...u32(off), ...u16(0)]);
   return new Blob([...partes, ...central, eocd], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 }
-function xmlEsc(v){ return String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function xmlEsc(v){ return String(v ?? "").replace(/[\u000B\u000C]/g, "\n").replace(/[\u0000-\u0008\u000E-\u001F\uFFFE\uFFFF]/g, "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 function listadoRevisor(){ // Excel para mandar al revisor: hoja Equipos + ESTADO + deficiencias abiertas, con formato
   const cab = ["PK","INFORME","SECCIÓN","NOMBRE","MARCA","MODELO","Nº SERIE","AÑO","ESTADO","A REPARAR"]; const idVisible = e => e.pk || e.clave; // el PK de mantenimiento; si no tiene, su clave
   const eqs = EQ.equipos.filter(e => e.clave && e.clave !== "PK-9999").slice().sort((a,b) => idVisible(a) < idVisible(b) ? -1 : (idVisible(a) > idVisible(b) ? 1 : 0)); // PK-9999 es la máquina de prueba
@@ -5420,7 +5431,7 @@ function render(){
     const w = window.open("", "_blank"); if(!w){ aviso("El navegador ha bloqueado la pestaña del listado: permite las ventanas emergentes para esta página y repítelo.", true); return; }
     w.document.write(r.html); w.document.close();
     if(r.dudas.length) aviso("Ojo con el listado: " + r.dudas.join(" · ") + ".", "naranja"); };
-  const be = $("#btn-editar"); if(be){ be.style.display = ((DATOS && DATOS.local) || (LOCAL && LOCAL.equipos)) ? "inline-block" : "none"; be.textContent = MODO_EDICION ? "Editar: sí" : "Editar: no"; be.classList.toggle("editando", MODO_EDICION); be.onclick = () => { MODO_EDICION = !MODO_EDICION; ALTA_ABIERTA = false; EQ_ALTA = false; ESC_ALTA = false; EQ_CARPETAS = false; render(); }; }
+  const be = $("#btn-editar"); if(be){ be.style.display = ((DATOS && DATOS.local) || (LOCAL && LOCAL.equipos)) ? "inline-block" : "none"; be.textContent = MODO_EDICION ? "Editar: sí" : "Editar: no"; be.classList.toggle("editando", MODO_EDICION); be.onclick = () => { MODO_EDICION = !MODO_EDICION; ALTA_ABIERTA = false; EQ_ALTA = false; ESC_ALTA = null; EQ_CARPETAS = false; render(); }; }
   cont.querySelectorAll(".tl .edf-modo").forEach(sel => sel.onchange = () => { const fe = sel.parentElement.querySelector(".edf-fecha"); fe.style.display = sel.value==="FECHA" ? "" : "none"; if(sel.value==="FECHA" && !fe.value) fe.value = ISO(new Date()); sel.closest(".fila").classList.add("cambiada"); });
   cont.querySelectorAll(".tl .edf-fecha, .tl .edf-nivel, .ficha-form [data-col], .ficha-form input[type=checkbox]").forEach(el => el.onchange = () => { const f = el.closest(".fila"); if(f) f.classList.add("cambiada"); const na = el.id && el.id.endsWith("-na") ? $("#"+el.id.slice(0,-3)) : null; if(na) na.disabled = el.checked; const c = $("#ficha-cambios"); const pp = PERSONA_ACTUAL || ALTA_P; if(c && pp){ const r = cambiosFicha(pp); c.textContent = r.cambios.length ? `${r.cambios.length} celda${r.cambios.length===1?"":"s"} por guardar` : "sin cambios"; } });
   { const efUM = cont.querySelector(".ficha-form .ef-um"), efCita = $("#ef-FECHA_CITA"), efVia = $("#ef-VIA"); // ficha: al poner la vía en UM, la fecha de cita pasa a desplegable
@@ -5680,7 +5691,7 @@ setInterval(() => { if(document.visibilityState === "visible") ponerseAlDia(); }
 /* ---------- historial del navegador dentro de la app ---------- */
 let NAVEGANDO_ATRAS = false;
 function estadoActual(){ return { app:true, vista:VISTA, persona:PERSONA_ACTUAL?PERSONA_ACTUAL.clave:null, pfila:PERSONA_ACTUAL?PERSONA_ACTUAL.fila:null, formacion:FORMACION_ACTUAL, andon:FILTRO_ANDON, apto:FILTRO_APTO,
-  equipo: (typeof EQUIPO_ACTUAL !== "undefined" && EQUIPO_ACTUAL) ? EQUIPO_ACTUAL.clave : null, eqsub: typeof EQ_SUB !== "undefined" ? EQ_SUB : null, carpetas: typeof EQ_CARPETAS !== "undefined" ? EQ_CARPETAS : false, subA: SUB_APTOS, subC: SUB_CURSOS, um: UM_FECHA, esc: ESC_ACTUAL, cursoAnio: CURSO_ANIO, conv: CONV_ACTUAL, lista: PERSONA_ACTUAL ? LISTA_FICHA : null }; }
+  equipo: (typeof EQUIPO_ACTUAL !== "undefined" && EQUIPO_ACTUAL) ? EQUIPO_ACTUAL.clave : null, eqsub: typeof EQ_SUB !== "undefined" ? EQ_SUB : null, carpetas: typeof EQ_CARPETAS !== "undefined" ? EQ_CARPETAS : false, subA: SUB_APTOS, subC: SUB_CURSOS, um: UM_FECHA, esc: ESC_ACTUAL, cursoAnio: CURSO_ANIO, conv: CONV_ACTUAL, lista: PERSONA_ACTUAL ? LISTA_FICHA : null, listaCursos: CURSO_ANIO ? LISTA_CURSOS.slice() : null }; }
 const sinAltura = e => { const c = Object.assign({}, e); delete c.y; delete c.pfila; return JSON.stringify(c); }; // si el Excel cambia a alguien de fila, no es otro paso
 function anotarHistorial(){
   if(NAVEGANDO_ATRAS || !DATOS) return;
@@ -5697,7 +5708,7 @@ window.addEventListener("popstate", ev => {
   VISTA = e.vista; PERSONA_ACTUAL = e.persona ? mismaPersona(e.persona, e.pfila) : null; LISTA_FICHA = Array.isArray(e.lista) ? e.lista.slice() : [];
   FORMACION_ACTUAL = e.formacion || ""; FILTRO_ANDON = e.andon || null; FILTRO_APTO = e.apto || null;
   if(e.subA) SUB_APTOS = e.subA; if(e.subC) SUB_CURSOS = e.subC; if(e.um != null) UM_FECHA = e.um;
-  if(e.eqsub) EQ_SUB = e.eqsub; EQ_CARPETAS = !!e.carpetas; EQUIPO_ACTUAL = (e.equipo && EQ) ? (EQ.equipos.find(x => x.clave === e.equipo) || null) : null; ESC_ACTUAL = e.esc || null; CURSO_ANIO = e.cursoAnio || null; CURSO_ANIO_NUM = null; CONV_ACTUAL = e.conv || null; NUEVA_FECHA = null;
+  if(e.eqsub) EQ_SUB = e.eqsub; EQ_CARPETAS = !!e.carpetas; EQUIPO_ACTUAL = (e.equipo && EQ) ? (EQ.equipos.find(x => x.clave === e.equipo) || null) : null; ESC_ACTUAL = e.esc || null; CURSO_ANIO = e.cursoAnio || null; CURSO_ANIO_NUM = null; if(Array.isArray(e.listaCursos)) LISTA_CURSOS = e.listaCursos.slice(); CONV_ACTUAL = e.conv || null; NUEVA_FECHA = null;
   marcarTab(); render(); NAVEGANDO_ATRAS = false; const y = e.y || 0; requestAnimationFrame(() => window.scrollTo(0, y));
 });
 function marcarTab(){
