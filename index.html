@@ -3249,6 +3249,7 @@ function guardarRondaActual(){ try { if(RONDA.nombres && !RONDA.girando) localSt
 function recuperarRondaActual(){ try { const r = JSON.parse(localStorage.getItem("prl.rondaActual")||"null"); if(!r || !DATOS) return; const nombres = r.claves.map(k => DATOS.personas.find(p=>p.clave===k) || null).filter(Boolean); if(!nombres.length) return; RONDA.personal = r.personal; RONDA.turno = r.turno; RONDA.nombres = nombres; RONDA.estado = r.estado || {}; RONDA.manual = !!r.manual; } catch(e){} }
 const ultimaObs = clave => { let u = null; for(const o of obsTodas()) if(o.clave===clave && (o.origen==="ruleta" || o.origen==="manual") && (!u || o.fecha > u)) u = o.fecha; return u; };
 const inicioSemestre = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() < 6 ? "01" : "07"}-01`; }; // primer día del semestre en curso (enero-junio o julio-diciembre), con el reloj del equipo, en AAAA-MM-DD como empiezan las fechas de las observaciones
+const sinVerEsteSemestre = p => { const u = ultimaObs(p.clave); return !u || u.slice(0,10) < inicioSemestre(); }; // sin ninguna ronda en lo que va de semestre (o nunca): los mismos que el sorteo saca primero
 function sortearNombres(cand, k){
   // primero, al azar y todos con la misma probabilidad, quien no tiene ninguna ronda en lo que va de semestre (también quien no se ha visto nunca);
   // si con ellos no se llega a k, el resto como antes: peso = días desde su última ronda (mínimo 1). Sin reposición.
@@ -3297,7 +3298,7 @@ function vistaRondas(){
       html += `<div class="vacio no-imprimir"><button class="primario" id="r-cerrar" ${listos?"":"disabled"}>Cerrar ronda (${listos} de ${RONDA.nombres.length})</button> <span class="subnota" style="display:inline">si alguno no está hoy, déjalo sin marcar y no se guarda</span></div>`; }
   }
   html += `</div>`;
-  html += `<div class="bloque"><h3>Este mes</h3><div class="marcador"><span><b>${new Set(delMes.map(o=>o.ronda)).size}</b>Rondas</span><span><b>${vistos.size}</b>Personas vistas</span><span><b>${delMes.length?Math.round(100*bien/delMes.length):"–"}%</b>Bien equipados</span><span><b>${cand.filter(p=>!ultimaObs(p.clave)).length}</b>nunca observados (${RONDA.personal.toLowerCase()}${RONDA.personal==="FÁBRICA"?", "+NOMBRE_TURNO[RONDA.turno]:""})</span></div></div>`;
+  html += `<div class="bloque"><h3>Este mes</h3><div class="marcador"><span><b>${new Set(delMes.map(o=>o.ronda)).size}</b>Rondas</span><span><b>${vistos.size}</b>Personas vistas</span><span><b>${delMes.length?Math.round(100*bien/delMes.length):"–"}%</b>Bien equipados</span><span><b>${cand.filter(sinVerEsteSemestre).length}</b>sin ver este semestre (${RONDA.personal.toLowerCase()}${RONDA.personal==="FÁBRICA"?", "+NOMBRE_TURNO[RONDA.turno]:""})</span></div></div>`;
   const ult = obsTodas().slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).filter((o,i) => i < 60 || OBS.includes(o)); // las 60 últimas y, además, todas las pendientes de pasar al Registro
   html += `<div class="bloque"><h3>Últimas observaciones <span class="cnt">${obsTodas().length} en total</span>
     <span class="der no-imprimir"><span class="mini">${REG ? `Registro: ${REG.nombreArchivo} (${REG.filas.length}) · <b>${OBS.length}</b> pendientes de pasar al Excel` : `<b>${OBS.length}</b> en el navegador, sin registro cargado`}</span>
