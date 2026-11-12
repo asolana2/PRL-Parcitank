@@ -1512,6 +1512,8 @@ function circulo1215(e){ // Informes 1215: solo el color; la fecha, al pasar el 
   const t = e.semaforo === "rojo" ? `vencido el ${fmtFecha(e.proxima)} · último informe ${fmtFecha(e.ultima)}` : `hasta ${fmtFecha(e.proxima)} · último informe ${fmtFecha(e.ultima)}`;
   return `<span class="sem ${cl}" title="${t}"></span>`;
 }
+/* cuadro de «Revisión 1215» en el que sale cada máquina: manda la columna ESTADO de la hoja Equipos */
+function grupoEst(e){ const v = String(e.estado||"").toUpperCase(); return /^OK/.test(v) ? "ok" : (v === "DEFICIENCIA" ? "def" : "sin"); }
 function chip1215(e){ if(!e.ultima) return `<span class="chip c-pendiente">Sin 1215</span>`; const cl = { verde:"c-ok", amarillo:"c-ok", rojo:"c-caducada" }[e.semaforo]; return `<span class="chip ${cl}" title="última ${fmtFecha(e.ultima)}">${e.semaforo==="rojo" ? "venció " : "hasta "}${fmtFecha(e.proxima)}</span>`; }
 function defsAbiertas(e){ return EQ.deficiencias.filter(d => d.clave === e.clave && d.estado !== "RESUELTA"); }
 function chipDocs(e, c){
@@ -1637,7 +1639,6 @@ function vistaEquipos(){
     EXPORT_CURSOS = { nombre:`Equipos_${new Date().toISOString().slice(0,10)}.xlsx`, hoja:"Equipos", cabeceras:["Clave","PK","Máquina","Sección","Marca","Modelo","Nº serie","Última 1215","Próxima 1215","Documentación","Deficiencias abiertas"], filas: T.vis.map(e => { const c = CACHE_MAQ[e.clave]; return [e.clave,e.pk,e.nombre,e.seccion,e.marca,e.modelo,e.serie,e.ultima||e.ultimaTxt,e.proxima||"", e.docNoAplica?"NO APLICA":(c===undefined?"":(c===null?"SIN CARPETA":(c.completa?"COMPLETA":"FALTA: "+c.faltan.join(", ")))), defsAbiertas(e).length]; }) };
   }
   else if(EQ_SUB === "1215"){
-    const grupoEst = e => { const v = String(e.estado||"").toUpperCase(); return /^OK/.test(v) ? "ok" : (v === "DEFICIENCIA" ? "def" : "sin"); }; // manda la columna ESTADO de la hoja Equipos
     const nOk = lista.filter(e => grupoEst(e)==="ok").length, nDef = lista.filter(e => grupoEst(e)==="def").length, nSin = lista.length - nOk - nDef;
     const selV = ["ok","def","sin"].includes(EQ_FILTROS.visita) ? EQ_FILTROS.visita : "sin";
     const av = (cl, k, num, txt) => `<button class="${cl} ${selV===k?"sel":""}" data-semvisita="${k}"><span class="num">${num}</span><span class="lbl">${txt}</span></button>`;
@@ -5431,7 +5432,7 @@ function render(){
   cont.querySelectorAll("[data-semvisita]").forEach(b => b.onclick = () => { EQ_FILTROS.visita = b.dataset.semvisita; render(); }); // Revisadas / Sin revisar
   cont.querySelectorAll("[data-ordinf]").forEach(t => t.onclick = () => { const k = t.dataset.ordinf; if(EQ_ORD_INF.col === k) EQ_ORD_INF.dir = -EQ_ORD_INF.dir; else EQ_ORD_INF = { col:k, dir:1 }; render(); });
   cont.querySelectorAll("[data-ordlista]").forEach(t => t.onclick = () => { const k = t.dataset.ordlista; if(EQ_ORD_LISTA.col === k) EQ_ORD_LISTA.dir = -EQ_ORD_LISTA.dir; else EQ_ORD_LISTA = { col:k, dir:1 }; render(); });
-  cont.querySelectorAll("[data-salto]").forEach(s => s.onclick = ev => { ev.stopPropagation(); const tr = s.closest("tr[data-equipo]"); const e = tr && EQ.equipos.find(x => x.clave === tr.dataset.equipo); if(!e) return; EQ_SUB = s.dataset.salto; EQ_FILTROS.q = e.pk || e.clave; EQ_NUEVA_DEF = false; EQ_FORM = null; render(); });
+  cont.querySelectorAll("[data-salto]").forEach(s => s.onclick = ev => { ev.stopPropagation(); const tr = s.closest("tr[data-equipo]"); const e = tr && EQ.equipos.find(x => x.clave === tr.dataset.equipo); if(!e) return; EQ_SUB = s.dataset.salto; EQ_FILTROS.q = e.pk || e.clave; if(EQ_SUB === "1215") EQ_FILTROS.visita = grupoEst(e); /* v2.70: «Revisión 1215» se abre en el cuadro de esa máquina (antes, en el último que se miró, y podía salir vacía) */ EQ_NUEVA_DEF = false; EQ_FORM = null; render(); });
   cont.querySelectorAll("button[data-rev-marca]").forEach(b => b.onclick = async ev => { ev.stopPropagation(); // Revisión 1215: se escribe en el Excel al pulsar
     const fila = b.closest("td"); fila.querySelectorAll("button").forEach(x => x.disabled = true); b.textContent = "…"; EQ_FORM = null;
     try{ await marcarRevision(b.dataset.revMarca, b.dataset.estado); }catch(err){ aviso("No se ha guardado: " + err.message); } render(); });
