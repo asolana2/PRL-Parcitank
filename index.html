@@ -943,6 +943,9 @@ tr.fila-total td{font-weight:800; border-top:2px solid var(--line);}
 .turnos-panel .tu-fila input[type=time]{min-width:0; width:6.8rem; padding:.15rem .35rem;}
 
 /* ===== v2.69 ===== */
+
+/* ===== v2.71 ===== */
+.esc-may{text-transform:uppercase;} /* tipo, marca y modelo de una escalera: se guardan en mayúsculas */
 </style>
 </head>
 <body>
@@ -2055,7 +2058,7 @@ function vistaFichaEscalera(e){
     const secOpts = (MAT.secciones.includes(e.seccion) ? "" : (e.seccion ? `<option selected>${escEq(e.seccion)}</option>` : `<option value="" selected>— sin sección —</option>`)) + MAT.secciones.map(x => `<option ${x===e.seccion?"selected":""}>${escEq(x)}</option>`).join(""); // v2.70: si su sección no está tal cual en la lista, sale la suya (antes salía la primera y al guardar se la cambiaba)
     html += `<div class="bloque no-imprimir"><h3>Editar ${e.codigo}</h3><div class="editor esc-editor">
       <label>Sección<select id="esc-f-sec">${secOpts}<option value="__otra">Otra…</option></select></label><label id="esc-f-otra-l" style="display:none">Nombre de la sección<input id="esc-f-otra" type="text"></label>
-      <label>Tipo<input id="esc-f-tipo" type="text" value="${escEq(e.tipo)}"></label><label>Marca<input id="esc-f-marca" type="text" value="${escEq(e.marca)}"></label><label>Modelo<input id="esc-f-modelo" type="text" value="${escEq(e.modelo)}"></label><label>Altura<input id="esc-f-altura" type="text" value="${escEq(e.altura)}"></label>
+      <label>Tipo<input id="esc-f-tipo" type="text" class="esc-may" value="${escEq(e.tipo)}"></label><label>Marca<input id="esc-f-marca" type="text" class="esc-may" value="${escEq(e.marca)}"></label><label>Modelo<input id="esc-f-modelo" type="text" class="esc-may" value="${escEq(e.modelo)}"></label><label>Altura<input id="esc-f-altura" type="text" value="${escEq(e.altura)}"></label>
       <label>Código de barras<input id="esc-f-barras" type="text" value="${escEq(e.barras)}"></label><label>Lote<input id="esc-f-lote" type="text" value="${escEq(e.lote)}"></label><label>Nº de placa<input id="esc-f-placa" type="text" value="${escEq(e.placa)}"></label><label>Fecha de fabricación<input id="esc-f-fab" type="date" min="1900-01-01" max="2100-12-31" value="${e.fab ? ISO(e.fab) : ""}"></label>
       <label>Estado<select id="esc-f-est">${ESTADOS_ESC.map(x => `<option ${x===e.estado?"selected":""}>${x}</option>`).join("")}${ESTADOS_ESC.includes(e.estado) || !e.estado ? "" : `<option selected>${escEq(e.estado)}</option>`}</select></label>
       <label>Resultado<select id="esc-f-res">${["APTO","NO APTO"].map(x => `<option ${x===e.resultado?"selected":""}>${x}</option>`).join("")}${e.resultado && !["APTO","NO APTO"].includes(e.resultado) ? `<option selected>${escEq(e.resultado)}</option>` : ""}</select></label>
@@ -2271,7 +2274,7 @@ async function escribirMaterial(prepara, comprueba){
   return true;
 }
 /* v2.70: los datos de la escalera que se escriben a mano (ficha y «＋ Nueva escalera»): columna del Excel, nombre en pantalla y dónde lo guarda la app al leer */
-const DATOS_ESC = [ { col:"TIPO", id:"tipo", t:"Tipo", prop:"tipo" }, { col:"MARCA", id:"marca", t:"Marca", prop:"marca" }, { col:"MODELO", id:"modelo", t:"Modelo", prop:"modelo" }, { col:"ALTURA", id:"altura", t:"Altura", prop:"altura" },
+const DATOS_ESC = [ { col:"TIPO", id:"tipo", t:"Tipo", prop:"tipo", may:true }, { col:"MARCA", id:"marca", t:"Marca", prop:"marca", may:true }, { col:"MODELO", id:"modelo", t:"Modelo", prop:"modelo", may:true }, { col:"ALTURA", id:"altura", t:"Altura", prop:"altura" }, // may (v2.71): se guarda en MAYÚSCULAS, como la sección, para que en el filtro no salgan repetidos («Tijera» y «TIJERA»)
   { col:"CODIGO BARRAS", id:"barras", t:"Código de barras", prop:"barras" }, { col:"LOTE", id:"lote", t:"Lote", prop:"lote" }, { col:"Nº PLACA", id:"placa", t:"Nº de placa", prop:"placa" } ];
 const seccionEsc = (sel, otra) => { if(sel !== "__otra") return sel; const t = otra.trim(); if(!t) return ""; return MAT.secciones.find(x => normId(x) === normId(t)) || t.toUpperCase(); }; // «Otra…»: si ya existe escrita de otra forma (sin tilde…), la que ya hay
 const FECHA_OK = v => !v || (/^\d{4}-\d{2}-\d{2}$/.test(v) && +v.slice(0,4) >= 1900 && +v.slice(0,4) <= 2100);
@@ -2282,7 +2285,7 @@ function panelAltaEsc(){
   const lista = (id, prop) => `<datalist id="${id}">${[...new Set(MAT.escaleras.map(x => x[prop]).filter(Boolean))].sort().map(v => `<option value="${escEq(v)}">`).join("")}</datalist>`;
   return `<div class="bloque no-imprimir esc-alta"><h3>Nueva escalera <span class="cnt">será la ${siguienteCodigoEsc()}</span><span class="der"><button class="btn2" id="esc-a-cancelar">Cancelar</button></span></h3><div class="editor esc-editor">
       <label>Sección<select id="esc-a-sec"><option value="">— elige —</option>${MAT.secciones.map(x => `<option ${sel("esc-a-sec", x, "")}>${escEq(x)}</option>`).join("")}<option value="__otra" ${sel("esc-a-sec", "__otra", "")}>Otra…</option></select></label><label id="esc-a-otra-l" style="${B["esc-a-sec"] === "__otra" ? "" : "display:none"}">Nombre de la sección<input id="esc-a-otra" type="text" value="${val("esc-a-otra")}"></label>
-      ${DATOS_ESC.map(d => `<label>${d.t}<input id="esc-a-${d.id}" type="text" value="${val("esc-a-" + d.id)}"${d.id === "tipo" || d.id === "marca" ? ` list="esc-dl-${d.id}"` : ""}></label>`).join("")}${lista("esc-dl-tipo", "tipo")}${lista("esc-dl-marca", "marca")}
+      ${DATOS_ESC.map(d => `<label>${d.t}<input id="esc-a-${d.id}" type="text"${d.may ? ` class="esc-may"` : ""} value="${val("esc-a-" + d.id)}"${d.id === "tipo" || d.id === "marca" ? ` list="esc-dl-${d.id}"` : ""}></label>`).join("")}${lista("esc-dl-tipo", "tipo")}${lista("esc-dl-marca", "marca")}
       <label>Fecha de fabricación<input id="esc-a-fab" type="date" min="1900-01-01" max="2100-12-31" value="${val("esc-a-fab")}"></label>
       <label>Estado<select id="esc-a-est"><option ${sel("esc-a-est", "EN USO", "EN USO")}>EN USO</option><option ${sel("esc-a-est", "FUERA DE USO", "EN USO")}>FUERA DE USO</option></select></label>
       <label>Resultado<select id="esc-a-res"><option ${sel("esc-a-res", "APTO", "APTO")}>APTO</option><option ${sel("esc-a-res", "NO APTO", "APTO")}>NO APTO</option></select></label>
@@ -2297,7 +2300,7 @@ async function guardarAltaEsc(){
   if(!sec){ aviso(q("esc-a-sec").value === "__otra" ? "Escribe el nombre de la sección." : "Elige la sección de la escalera.", true); return false; }
   for(const [id, t] of [["esc-a-fab", "La fecha de fabricación"], ["esc-a-ult", "La fecha de la última revisión"]]) if(!FECHA_OK(q(id).value)){ aviso(`${t} no es válida.`, true); return false; }
   const vals = { "SECCION": sec, "ESTADO": q("esc-a-est").value, "RESULTADO": q("esc-a-res").value, "GRABADA": "NO", "OBSERVACIONES": q("esc-a-obs").value.trim() };
-  for(const d of DATOS_ESC) vals[d.col] = q("esc-a-" + d.id).value.trim();
+  for(const d of DATOS_ESC) vals[d.col] = d.may ? q("esc-a-" + d.id).value.trim().toUpperCase() : q("esc-a-" + d.id).value.trim();
   const fechas = { "FECHA FABRICACION": q("esc-a-fab").value, "ULTIMA REVISION": q("esc-a-ult").value };
   let codigo = null; const sinColumna = [];
   await escribirMaterial(async libro => {
@@ -2327,7 +2330,7 @@ async function guardarFichaEsc(e){
   const nuevos = { "SECCION": sec, "ESTADO": q("esc-f-est").value, "RESULTADO": q("esc-f-res").value, "GRABADA": q("esc-f-grab").value, "OBSERVACIONES": q("esc-f-obs").value.trim() };
   const ult = q("esc-f-ult").value;
   const antes = { "SECCION": e.seccion, "ESTADO": e.estado, "RESULTADO": e.resultado, "GRABADA": e.grabada ? "SI" : "NO", "OBSERVACIONES": e.obs };
-  for(const [k, id, v] of DATOS_ESC.map(d => [d.col, "esc-f-" + d.id, e[d.prop]])){ const i = q(id); if(i && i.value !== i.defaultValue.replace(/[\r\n]/g, "")){ nuevos[k] = i.value.trim(); antes[k] = v; } } // v2.70: tipo, marca, modelo, altura, código de barras, lote y nº de placa
+  for(const d of DATOS_ESC){ const i = q("esc-f-" + d.id); if(i && i.value !== i.defaultValue.replace(/[\r\n]/g, "")){ nuevos[d.col] = d.may ? i.value.trim().toUpperCase() : i.value.trim(); antes[d.col] = e[d.prop]; } } // v2.70: tipo, marca, modelo, altura, código de barras, lote y nº de placa
   const fab = q("esc-f-fab") ? q("esc-f-fab").value : null, cambiaFab = fab !== null && fab !== q("esc-f-fab").defaultValue;
   const cambiosN = Object.keys(nuevos).filter(k => nuevos[k] !== antes[k]); const cambiaFecha = ult !== (e.ultima ? ISO(e.ultima) : "");
   if(!cambiosN.length && !cambiaFecha && !cambiaFab){ aviso("No has cambiado nada."); return; }
@@ -4678,12 +4681,13 @@ function bindCursosAnio(cont){
     const p = DATOS.personas.find(q => q.clave === b.dataset.anadir); if(!p) return; const k = clavePersonaConv(p.apellidos, p.nombre);
     if(c.conv.alumnos.some(a => clavePersonaConv(a.apellidos, a.nombre) === k)){ aviso(`${p.nombreCompleto} ya está en este curso.`); return; }
     const deK = o => o.conv.alumnos.find(a => clavePersonaConv(a.apellidos, a.nombre) === k), otras = convsDeCurso(c.conv.curso, true).filter(o => o !== c);
-    const abierta = otras.find(o => { const a = deK(o); const u = ultimoDia(o.conv); return a && (SIN_CERRAR_CONV.has(a.estado) || (a.estado === "HECHO" && !(u && HOY_UTC >= u))); }); // sin cerrar en otra fecha (o en Hecho en una que todavía no ha llegado a su último día): no
+    const estado = ESTADO_ANADIR || estadosAnadir(c.conv)[0], noFue = estado === "NO PRESENTADO"; // v2.71: apuntar que no fue no le quita el sitio en otra fecha del mismo curso (pasa al meter los cursos a toro pasado: no vino a esta y ya está asignado a la siguiente), así que no se frena ni se pregunta si lo repite
+    const abierta = noFue ? null : otras.find(o => { const a = deK(o); const u = ultimoDia(o.conv); return a && (SIN_CERRAR_CONV.has(a.estado) || (a.estado === "HECHO" && !(u && HOY_UTC >= u))); }); // sin cerrar en otra fecha (o en Hecho en una que todavía no ha llegado a su último día): no
     if(abierta){ const a = deK(abierta); aviso(`${p.nombreCompleto} ya está en «${abierta.nombre}» como ${ESTADOS_CONV[a.estado] || a.estado}. Si no es allí, quítalo de esa fecha primero.`, "naranja"); return; }
-    const hechas = otras.filter(o => { const a = deK(o); return a && a.estado === "HECHO"; }); // ya lo hizo en otra fecha: puede repetirlo (por ejemplo, por una sanción)
+    const hechas = noFue ? [] : otras.filter(o => { const a = deK(o); return a && a.estado === "HECHO"; }); // ya lo hizo en otra fecha: puede repetirlo (por ejemplo, por una sanción)
     if(hechas.length){ const d = hechas.map(o => ultimoDia(o.conv)).filter(Boolean).sort((x, y) => y - x)[0];
       if(!confirm(`${p.nombreCompleto}: ya lo hizo ${d ? "el " + fmtFecha(d) : `en «${hechas[0].nombre}»`}. ¿Lo vuelve a hacer en esta fecha?`)) return; }
-    const estado = ESTADO_ANADIR || estadosAnadir(c.conv)[0]; let motivo = "";
+    let motivo = "";
     if(estado === "NO PRESENTADO"){ motivo = prompt(`¿Por qué no fue ${p.nombreCompleto}?`, ""); if(motivo === null) return; motivo = motivo.trim(); if(!motivo){ aviso("Escribe el motivo."); return; } }
     const nv = copiaConv(c.conv); nv.alumnos.push({ apellidos:p.apellidos, nombre:p.nombre, estado, motivo, fecha: estado === "HECHO" ? new Date(ultimoDia(nv)) : new Date(HOY_UTC) }); b.disabled = true;
     try{ await guardarAlumnos(c, nv); BUSCAR_CURSO = ""; render(); aviso(`Guardado en el Excel «Alumnos»: ${p.nombreCompleto}, como «${ESTADOS_CONV[estado]}». El Personal no se toca.`); }catch(e){ b.disabled = false; aviso2(e); } });
