@@ -946,6 +946,12 @@ tr.fila-total td{font-weight:800; border-top:2px solid var(--line);}
 
 /* ===== v2.71 ===== */
 .esc-may{text-transform:uppercase;} /* tipo, marca y modelo de una escalera: se guardan en mayúsculas */
+/* foto o vídeo de cómo ha quedado una deficiencia resuelta */
+.cierre-def{display:flex; flex-direction:column; gap:.4rem; padding:.5rem .7rem; border:1px dashed var(--line); border-radius:8px; background:#fff;}
+.cierre-hay, .fe-cierre{display:flex; flex-wrap:wrap; gap:.5rem; align-items:center;} .cierre-hay:empty, .fe-cierre:empty{display:none;}
+.cierre-hay img, .fe-cierre img{width:112px; height:84px; object-fit:cover; border-radius:8px; border:1px solid var(--line); display:block;}
+.cierre-enlace{display:inline-block; padding:.3rem .65rem; border:1px solid var(--line); border-radius:8px; background:#fff; text-decoration:none; font-size:.85rem; white-space:nowrap;}
+.fe-cierre{margin:.35rem 1rem 0 calc(3rem + 110px);} /* en la ficha, debajo del texto de la deficiencia resuelta (y sin su tono apagado) */
 </style>
 </head>
 <body>
@@ -1496,7 +1502,8 @@ async function contenidoMaquina(e){
   const raiz = await archivosDe(c.handle); const subcarpetas = []; for await (const [n, s] of c.handle.entries()) if(s.kind === "directory") subcarpetas.push(n);
   const todasFotos = (await archivosDe(fotosDir)).concat(raiz.filter(x => esFoto(x.nombre))).filter(x => esFoto(x.nombre));
   const esDef = x => /^DEF\b/i.test(x.nombre); // las viejas "DEF D0xx ..." que aún estén en FOTOS
-  const fotos = todasFotos.filter(x => !esDef(x)); const fotosDef = (await archivosDe(defDir)).filter(x => esFoto(x.nombre)).concat(todasFotos.filter(esDef));
+  const fotos = todasFotos.filter(x => !esDef(x)); const enDef = await archivosDe(defDir); const fotosDef = enDef.filter(x => esFoto(x.nombre)).concat(todasFotos.filter(esDef));
+  const defArchivos = enDef.concat(todasFotos.filter(esDef)); // v2.71: todo lo de deficiencias, también los vídeos (para la foto o el vídeo de cómo quedó una resuelta)
   let ce = await archivosDe(ceDir); // puede tener subcarpetas (declaración / marcado / expediente)
   if(ceDir) for await (const [n, s] of ceDir.entries()) if(s.kind === "directory") ce = ce.concat((await archivosDe(s)).map(x => ({ nombre: n + " / " + x.nombre, handle:x.handle })));
   const manual = await archivosDe(manDir); const otros = await archivosDe(otrosDir);
@@ -1505,7 +1512,7 @@ async function contenidoMaquina(e){
   const tiene = re => ce.some(x => re.test(norm(x.nombre)));
   const docs = { declaracion: tiene(/DECLARACI/), marcado: tiene(/MARCADO/), expediente: tiene(/EXPEDIENTE/), manual: manual.length > 0 };
   const faltan = e.docNoAplica ? [] : (e.propia ? [!docs.expediente && "expediente técnico", !docs.manual && "manual"] : [!docs.declaracion && "declaración CE", !docs.marcado && "marcado CE", !docs.manual && "manual"]).filter(Boolean);
-  return { carpeta:c, subcarpetas, fotosDir, fotos, fotosDef, ce, manual, otros, revisiones, docs, faltan, completa: faltan.length === 0 };
+  return { carpeta:c, subcarpetas, fotosDir, fotos, fotosDef, defArchivos, ce, manual, otros, revisiones, docs, faltan, completa: faltan.length === 0 };
 }
 const CACHE_MAQ = {}; // clave -> contenido (para no releer la carpeta cada vez)
 async function contenidoCache(e){ if(!MAQ_INDICE) return undefined; if(CACHE_MAQ[e.clave] === undefined){ const c = await contenidoMaquina(e); if(c !== null || MAQ_INDICE) CACHE_MAQ[e.clave] = c; } return CACHE_MAQ[e.clave]; }
@@ -1689,13 +1696,15 @@ function vistaEquipos(){
     const cntE = k => todasD.filter(d => d.estado === k).length; const selE = EQ_FILTROS.estado;
     const abe = (cl, k, num, txt) => `<button class="${cl} ${selE===k?"sel":""}" data-semdef="${k}"><span class="num">${num}</span><span class="lbl">${txt}</span></button>`;
     html += `<div class="andon no-imprimir">${abe("a-rojo","ABIERTA",cntE("ABIERTA"),"abiertas")}${abe("a-amarillo","EN CURSO",cntE("EN CURSO"),"en curso")}${abe("a-verde","RESUELTA",cntE("RESUELTA"),"resueltas")}</div>`;
-    const T = tablaEq("defs", todasD.filter(d => selE ? d.estado === selE : d.estado !== "RESUELTA").map(defActual), columnasEq("defs"));
+    const T = tablaEq("defs", todasD.filter(d => (selE ? d.estado === selE : d.estado !== "RESUELTA") || (EQ_CIERRE && d.id === EQ_CIERRE)).map(defActual), columnasEq("defs")); // v2.71: la que se acaba de resolver sigue a la vista, con su recuadro, hasta pulsar «Cerrar»
+    const dC = EQ_CIERRE ? todasD.find(d => d.id === EQ_CIERRE && d.estado === "RESUELTA") : null, cierreEnFila = !!(dC && T.vis.some(d => d.id === dC.id)); // si un filtro de columna la esconde, el recuadro sale arriba
     html += `<div class="bloque"><h3>Deficiencias <span class="cnt">${T.vis.length}</span><span class="der no-imprimir"><button class="btn2" id="eq-parte">Parte para mantenimiento</button>${LOCAL && LOCAL.equipos ? `<button class="btn2 naranja" id="eq-nueva-def">＋ Nueva deficiencia</button>` : ""}</span></h3>
-      ${EQ_NUEVA_DEF ? formNuevaDef(null) : ""}
+      ${EQ_NUEVA_DEF ? formNuevaDef(null) : ""}${dC && !cierreEnFila ? formCierreDef(dC, EQ.equipos.find(x => x.clave === dC.clave)) : ""}
       <table>${T.thead}<tbody>`;
     for(const d of T.vis){ const e = EQ.equipos.find(x => x.clave === d.clave);
       html += `<tr class="${d.estado==="RESUELTA"?"baja":""} ${e?"fila-persona":""}" ${e?`data-equipo="${e.clave}"`:""}>${T.fila(d)}</tr>`;
-      if(EQ_FORM && EQ_FORM.tipo === "editdef" && EQ_FORM.id === d.id && e) html += `<tr class="fila-form"><td colspan="8" style="padding:0">${formEditDefs(e, d.id)}</td></tr>`; }
+      if(EQ_FORM && EQ_FORM.tipo === "editdef" && EQ_FORM.id === d.id && e) html += `<tr class="fila-form"><td colspan="8" style="padding:0">${formEditDefs(e, d.id)}</td></tr>`;
+      else if(dC && dC.id === d.id) html += `<tr class="fila-form"><td colspan="8" style="padding:0">${formCierreDef(dC, e)}</td></tr>`; }
     if(!T.vis.length) html += `<tr><td colspan="8" class="vacio">Sin deficiencias con ese filtro.</td></tr>`;
     html += `</tbody></table></div>`;
   }
@@ -1727,7 +1736,7 @@ function vistaFichaEquipo(e){
   const filaDef = (d, resuelta) => `<div class="fe-def${resuelta ? " resuelta" : ""}"><span class="f">${d.fecha ? fmtFecha(d.fecha) : ""}</span><span class="tx">${d.descripcion}${TAG_1215(d)}</span>${resuelta ? `<span class="pill p-resuelta">Resuelta${d.cierre ? " " + fmtFecha(d.cierre) : ""}</span>` : (d.estado === "EN CURSO" ? `<span class="pill p-curso">En curso</span>` : `<span class="pill p-abierta">Abierta</span>`)}</div>`;
   html += `<div class="bloque" id="eq-b-defs"><h3><svg class="h-ic"><use href="#i-def"/></svg>Deficiencias <span class="cnt">${nAb} abierta${nAb===1?"":"s"} · <a href="#" id="eq-res-toggle" class="no-imprimir" style="color:inherit">${resueltas.length} resuelta${resueltas.length===1?"":"s"} ${EQ_RES_ABIERTO?"▴":"▾"}</a></span><span class="der no-imprimir">${LOCAL && LOCAL.equipos ? `<button class="btn2 naranja" id="eq-nueva-def">＋ Nueva deficiencia</button>${nAb ? `<button class="btn2" data-def-editar="${e.clave}">✏️ Editar</button>` : ""}` : ""}</span></h3>${EQ_NUEVA_DEF ? formNuevaDef(e) : ""}${EQ_FORM && EQ_FORM.tipo === "editdef" && EQ_FORM.clave === e.clave ? formEditDefs(e, EQ_FORM.id) : ""}`;
   html += nAb ? abiertas.map(d => filaDef(d, false)).join("") : `<div class="vacio">Sin deficiencias abiertas.</div>`;
-  if(EQ_RES_ABIERTO && resueltas.length) html += resueltas.map(d => filaDef(d, true)).join("");
+  if(EQ_RES_ABIERTO && resueltas.length) html += resueltas.map(d => filaDef(d, true) + `<div class="fe-cierre" data-cierre-def="${escEq(d.id)}" data-cierre-pre="Cómo quedó:"></div>`).join(""); // v2.71
   html += `<div style="height:.4rem"></div></div>`;
   html += `<div class="bloque" id="eq-b-docs"><h3><svg class="h-ic"><use href="#i-docs"/></svg>Documentación</h3><div id="eq-docs"><div class="vacio">Leyendo la carpeta…</div></div></div>`;
   html += `<div class="bloque" id="eq-b-rev"><h3><svg class="h-ic"><use href="#i-1215"/></svg>Revisiones${revs.length ? ` <span class="cnt"><a href="#" id="eq-rev-toggle" class="no-imprimir" style="color:inherit">${revs.length} revisi${revs.length===1?"ón":"ones"} ${EQ_REV_ABIERTO?"▴":"▾"}</a></span>` : ""}</h3>`;
@@ -1783,6 +1792,60 @@ async function buscarEquiposEnMaquinas(){
   }
   return false;
 }
+/* ---------- v2.71: foto o vídeo de cómo ha quedado una deficiencia resuelta («mira, se cerró por esto») ----------
+   Van a la subcarpeta DEFICIENCIAS de la máquina como «DEF D012 RESUELTA aaaa-mm-dd N.ext». No se apuntan en el Excel: la app los encuentra por el nombre
+   (también los que se copien a mano con ese principio). Las fotos se reducen como las de una deficiencia nueva; un vídeo, o lo que no se pueda leer como foto, se guarda tal cual */
+let EQ_CIERRE = null;                      // id de la deficiencia con el recuadro «foto o vídeo de cómo ha quedado» abierto (sale al pulsar «Resuelta»)
+let CIERRE_CAM = { id:null, fotos:[] };    // fotos hechas con la cámara para ese recuadro (o para el de «Editar»), todavía sin guardar
+const esVideo = n => /\.(mp4|mov|m4v|webm|avi|mkv|3gp|wmv)$/i.test(n || "");
+const seVeComoFoto = n => /\.(jpe?g|png|webp|gif)$/i.test(n || ""); // .heic no: Edge no lo pinta
+const reCierre = id => new RegExp("^DEF\\s+" + String(id).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s+RESUELTA(?![A-Za-z0-9])", "i");
+function cierreDe(c, d){ if(!c || !d || !d.id) return []; const re = reCierre(d.id); return (c.defArchivos || []).filter(f => re.test(f.nombre)); }
+async function guardarCierreDef(d, archivos){ // archivos: File o Blob (los de la cámara no traen nombre)
+  if(!CARPETA_MAQ) throw new Error("abre antes la carpeta MÁQUINAS (botón «Abrir la carpeta MÁQUINAS»).");
+  if(!d.id) throw new Error("esta deficiencia no tiene ID en el Excel.");
+  const e = EQ.equipos.find(m => m.clave === d.clave); if(!e) throw new Error("la máquina de esta deficiencia ya no está en el Excel.");
+  let c = carpetaDe(e); if(!c) c = await crearCarpetaMaquina(e);
+  const dir = (await subcarpeta(c.handle, "DEFICIEN")) || await c.handle.getDirectoryHandle("DEFICIENCIAS", { create:true }); // la misma que lee la app
+  const hay = new Set(); for await (const [n] of dir.entries()) hay.add(n.replace(/\.[^.]*$/, "").toLowerCase()); // sin la extensión: «… 1.jpg» y «… 1.mp4» no pueden convivir
+  const fecha = d.cierre ? ISO(d.cierre) : ISO(HOY_UTC); const guardados = []; let k = 0;
+  try{
+    for(const f of archivos){
+      const esV = esVideo(f.name) || /^video\//.test(f.type || ""); let blob = f, ext = ((f.name || "").match(/\.([A-Za-z0-9]{1,5})$/) || [])[1]; ext = ext ? ext.toLowerCase() : (esV ? "mp4" : "jpg");
+      if(!esV){ const r = await reducirFoto(f); if(r !== f){ blob = r; ext = "jpg"; } } // si no se puede leer como imagen (.heic, un PDF…), se guarda tal cual
+      let base; do { k++; base = `DEF ${d.id} RESUELTA ${fecha} ${k}`; } while(hay.has(base.toLowerCase()));
+      const fh = await dir.getFileHandle(`${base}.${ext}`, { create:true }); const w = await fh.createWritable(); await w.write(blob); await w.close(); hay.add(base.toLowerCase()); guardados.push(`${base}.${ext}`);
+    }
+  }catch(err){ throw new Error(`${err.message}${guardados.length ? ` (se ${guardados.length === 1 ? "ha guardado 1" : "han guardado " + guardados.length} de ${archivos.length})` : ""}`); }
+  finally{ delete CACHE_MAQ[e.clave]; }
+  return { guardados, carpeta: c.nombre + "/" + dir.name };
+}
+/* el trozo de formulario: lo que ya hay guardado y los botones para añadir. Sale en el recuadro de «Resuelta» y en el de «Editar» de una deficiencia resuelta */
+function bloqueCierreDef(d){
+  const id = escEq(d.id), n = CIERRE_CAM.id === d.id ? CIERRE_CAM.fotos.length : 0;
+  return `<div class="cierre-def" data-cierre-form="${id}"><b class="mini">Foto o vídeo de cómo ha quedado</b><div class="cierre-hay" data-cierre-def="${id}" data-cierre-pre="Ya guardado:"></div>
+    ${!d.id ? `<div class="mini">Esta deficiencia no tiene ID en el Excel: no se le pueden añadir.</div>` : CARPETA_MAQ ? `<div style="display:flex; flex-wrap:wrap; gap:.5rem .8rem; align-items:end"><label>Fotos o vídeo<input type="file" data-cierre-fich="${id}" accept="image/*,video/*" multiple></label>${navigator.mediaDevices ? `<button class="btn2" type="button" data-cierre-cam="${id}">Hacer foto</button><span class="mini" data-cierre-cam-n="${id}">${n ? `${n} con la cámara` : ""}</span>` : ""}<button class="primario" type="button" data-cierre-guardar="${id}">Guardar foto o vídeo</button></div>`
+      : `<div class="mini">Para añadirlos, abre antes la carpeta MÁQUINAS (botón «Abrir la carpeta MÁQUINAS», arriba).</div>`}</div>`;
+}
+/* el recuadro que sale al pulsar «Resuelta»: es opcional y se cierra con «Cerrar» */
+function formCierreDef(d, e){
+  return `<div class="editor no-imprimir" id="form-cierre" style="align-items:stretch; flex-direction:column; gap:.45rem"><div><b>${escEq(e ? e.nombre : d.maquina)} · ${escEq(d.id)} resuelta</b> <span class="mini">Si tienes una foto o un vídeo de cómo ha quedado, añádelo aquí. Es opcional: también se puede poner más adelante, con «Editar».</span></div>${bloqueCierreDef(d)}<div><button class="btn2" id="cierre-cerrar">Cerrar</button></div></div>`;
+}
+/* pinta, en cada hueco [data-cierre-def], lo que hay guardado de esa deficiencia: las fotos en pequeño y un enlace por cada vídeo (se abren en otra pestaña) */
+async function rellenarCierres(){
+  const cont = $("#contenido"); if(!cont || !EQ) return; const huecos = [...cont.querySelectorAll("[data-cierre-def]")]; if(!huecos.length) return;
+  for(const el of huecos){
+    const d = EQ.deficiencias.find(x => x.id === el.dataset.cierreDef), e = d && EQ.equipos.find(m => m.clave === d.clave); if(!e) continue;
+    let fs = []; try{ fs = cierreDe(await contenidoCache(e), d); }catch(err){ continue; }
+    if(!el.isConnected) continue; // se ha vuelto a pintar mientras se leía la carpeta
+    if(!fs.length){ el.innerHTML = ""; continue; }
+    const partes = []; let nv = 0; const variosV = fs.filter(f => esVideo(f.nombre)).length > 1;
+    for(const f of fs){ let u; try{ u = await urlDe(f.handle); }catch(err){ partes.push(`<span class="mini">${escEq(f.nombre)} (no se puede abrir)</span>`); continue; }
+      partes.push(seVeComoFoto(f.nombre) ? `<a href="${u}" target="_blank" rel="noopener" title="${escEq(f.nombre)}"><img src="${u}" alt=""></a>`
+        : `<a href="${u}" target="_blank" rel="noopener" class="cierre-enlace" title="${escEq(f.nombre)}">${esVideo(f.nombre) ? `🎬 Vídeo${variosV ? " " + (++nv) : ""}` : "📎 " + escEq(f.nombre)}</a>`); }
+    if(el.isConnected) el.innerHTML = (el.dataset.cierrePre ? `<span class="mini">${escEq(el.dataset.cierrePre)}</span>` : "") + partes.join("");
+  }
+}
 /* ---------- deficiencias nuevas: en el PC se escriben en el Excel de equipos; en el móvil se guardan y se envían ---------- */
 const TAG_1215 = d => d.tipoNorm === "1215" ? ` <span class="chip c-opc">1215</span>` : "";
 function opcionesMaquinas(sec){ return `<option value="">— elige —</option>` + EQ.equipos.filter(m => !sec || m.seccion === sec).map(m => `<option value="${m.clave.replace(/"/g,"&quot;")}">${m.nombre} · ${m.seccion} · ${m.pk||m.clave}</option>`).join(""); }
@@ -1804,7 +1867,7 @@ let ND_FOTOS_CAM = []; // fotos hechas con la cámara para la deficiencia que se
 function formEditDefs(e, soloId){ // editar las deficiencias de la máquina desde su fila: texto y fecha, y la fecha de cierre si está resuelta; sin id, todas las abiertas
   const lista = soloId ? EQ.deficiencias.filter(d => d.clave === e.clave && d.id === soloId) : defsAbiertas(e);
   return `<div class="editor no-imprimir" style="align-items:stretch; flex-direction:column; gap:.45rem"><b>${e.nombre} · ${soloId ? "deficiencia" : "deficiencias abiertas"}</b>
-    ${lista.map(d => `<div style="display:flex; gap:.5rem; align-items:flex-start"><span class="mini" style="white-space:nowrap; padding-top:.4rem">${d.id}</span><div style="flex:1; display:flex; flex-direction:column; gap:.3rem"><textarea data-ed-def="${d.id}" rows="2" style="font:inherit; font-size:.9rem; padding:.35rem .5rem; border:1px solid var(--line); border-radius:4px; width:100%">${d.descripcion.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</textarea><div style="display:flex; flex-wrap:wrap; gap:.3rem .8rem; align-items:end"><label>Fecha<input type="date" data-ed-def-fecha="${d.id}" value="${d.fecha ? ISO(d.fecha) : ""}"></label><label>¿Es del 1215?<select data-ed-def-1215="${d.id}"><option value="" ${d.tipoNorm==="1215"?"":"selected"}>No</option><option value="1215" ${d.tipoNorm==="1215"?"selected":""}>Sí</option></select></label>${d.estado === "RESUELTA" ? `<label>Fecha de cierre<input type="date" data-ed-def-cierre="${d.id}" value="${d.cierre ? ISO(d.cierre) : ""}"></label>` : ""}</div></div><button class="primario" data-ed-def-guardar="${d.id}">Guardar</button><button class="btn2" data-ed-def-borrar="${d.id}" title="Se marca como borrada en el Excel y deja de verse en la app">Borrar</button></div>`).join("")}
+    ${lista.map(d => `<div style="display:flex; gap:.5rem; align-items:flex-start"><span class="mini" style="white-space:nowrap; padding-top:.4rem">${d.id}</span><div style="flex:1; display:flex; flex-direction:column; gap:.3rem"><textarea data-ed-def="${d.id}" rows="2" style="font:inherit; font-size:.9rem; padding:.35rem .5rem; border:1px solid var(--line); border-radius:4px; width:100%">${d.descripcion.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</textarea><div style="display:flex; flex-wrap:wrap; gap:.3rem .8rem; align-items:end"><label>Fecha<input type="date" data-ed-def-fecha="${d.id}" value="${d.fecha ? ISO(d.fecha) : ""}"></label><label>¿Es del 1215?<select data-ed-def-1215="${d.id}"><option value="" ${d.tipoNorm==="1215"?"":"selected"}>No</option><option value="1215" ${d.tipoNorm==="1215"?"selected":""}>Sí</option></select></label>${d.estado === "RESUELTA" ? `<label>Fecha de cierre<input type="date" data-ed-def-cierre="${d.id}" value="${d.cierre ? ISO(d.cierre) : ""}"></label>` : ""}</div>${d.estado === "RESUELTA" ? bloqueCierreDef(d) : ""}</div><button class="primario" data-ed-def-guardar="${d.id}">Guardar</button><button class="btn2" data-ed-def-borrar="${d.id}" title="Se marca como borrada en el Excel y deja de verse en la app">Borrar</button></div>`).join("")}
     <div><button class="btn2" id="ed-def-cerrar">Cerrar</button></div></div>`;
 }
 let CAM = null;
@@ -5218,7 +5281,7 @@ function render(){
   else if(VISTA === "tarjetas") cont.innerHTML = vistaTarjetas();
   else if(VISTA === "alta") cont.innerHTML = editable() ? vistaAlta() : vistaPersonas();
   else if(VISTA === "rondas") cont.innerHTML = vistaRondas();
-  else if(VISTA === "equipos"){ cont.innerHTML = vistaEquipos(); if(EQUIPO_ACTUAL) rellenarFichaEquipo(EQUIPO_ACTUAL); else rellenarMiniaturas(); }
+  else if(VISTA === "equipos"){ cont.innerHTML = vistaEquipos(); if(EQUIPO_ACTUAL) rellenarFichaEquipo(EQUIPO_ACTUAL); else rellenarMiniaturas(); rellenarCierres(); }
   else if(VISTA === "formaciones") cont.innerHTML = vistaFormaciones();
   else if(VISTA === "aptos") cont.innerHTML = vistaAptos();
   { const r = codReg(); if(r) cont.insertAdjacentHTML("afterbegin", `<div class="reg-cod">${r.cod} · ${r.nombre}</div>`); }
@@ -5510,9 +5573,9 @@ function render(){
   const elr = $("#eq-listado-revisor"); if(elr) elr.onclick = () => { const n = listadoRevisor(); aviso(`Listado para el revisor: ${n} máquinas.`); };
   const eqq = $("#eq-q"); if(eqq) eqq.oninput = () => { (EQ_SUB === "escaleras" ? ESC_FILTROS : EQ_FILTROS).q = eqq.value; const pos = eqq.selectionStart; render(); const e2 = $("#eq-q"); if(e2){ e2.focus(); try{ e2.setSelectionRange(pos,pos); }catch(e){} } };
   const eqs = $("#eq-sec"); if(eqs) eqs.onchange = () => { (EQ_SUB === "escaleras" ? ESC_FILTROS : EQ_FILTROS).seccion = eqs.value; render(); };
-  cont.querySelectorAll("[data-eqgrupo]").forEach(b => b.onclick = () => { if(b.dataset.eqgrupo === "esc"){ if(EQ_SUB !== "escaleras") EQ_SUB_MAQ = EQ_SUB; EQ_SUB = "escaleras"; } else EQ_SUB = EQ_SUB_MAQ || "lista"; EQUIPO_ACTUAL = null; ESC_ACTUAL = null; EQ_NUEVA_DEF = false; EQ_FORM = null; render(); });
+  cont.querySelectorAll("[data-eqgrupo]").forEach(b => b.onclick = () => { if(b.dataset.eqgrupo === "esc"){ if(EQ_SUB !== "escaleras") EQ_SUB_MAQ = EQ_SUB; EQ_SUB = "escaleras"; } else EQ_SUB = EQ_SUB_MAQ || "lista"; EQUIPO_ACTUAL = null; ESC_ACTUAL = null; EQ_NUEVA_DEF = false; EQ_FORM = null; EQ_CIERRE = null; render(); });
   const eqe = $("#eq-est"); if(eqe) eqe.onchange = () => { EQ_FILTROS.estado = eqe.value; render(); };
-  cont.querySelectorAll("[data-eqsub]").forEach(b => b.onclick = () => { EQ_SUB = b.dataset.eqsub; EQ_SUB_MAQ = EQ_SUB; EQ_NUEVA_DEF = false; EQ_FORM = null; render(); });
+  cont.querySelectorAll("[data-eqsub]").forEach(b => b.onclick = () => { EQ_SUB = b.dataset.eqsub; EQ_SUB_MAQ = EQ_SUB; EQ_NUEVA_DEF = false; EQ_FORM = null; EQ_CIERRE = null; render(); });
   cont.querySelectorAll("[data-sem1215]").forEach(b => b.onclick = () => { EQ_FILTROS.sem1215 = b.dataset.sem1215; render(); });
   cont.querySelectorAll("[data-semvisita]").forEach(b => b.onclick = () => { EQ_FILTROS.visita = b.dataset.semvisita; render(); }); // Revisadas / Sin revisar
   cont.querySelectorAll("[data-ordinf]").forEach(t => t.onclick = () => { const k = t.dataset.ordinf; if(EQ_ORD_INF.col === k) EQ_ORD_INF.dir = -EQ_ORD_INF.dir; else EQ_ORD_INF = { col:k, dir:1 }; render(); });
@@ -5522,7 +5585,7 @@ function render(){
     const fila = b.closest("td"); fila.querySelectorAll("button").forEach(x => x.disabled = true); b.textContent = "…"; EQ_FORM = null;
     try{ await marcarRevision(b.dataset.revMarca, b.dataset.estado); }catch(err){ aviso("No se ha guardado: " + err.message); } render(); });
   cont.querySelectorAll("button[data-def-nueva]").forEach(b => b.onclick = e => { e.stopPropagation(); ND_FOTOS_CAM = []; EQ_FORM = { clave: b.dataset.defNueva, tipo:"def", desde1215:true }; render(); const t = $("#nd-desc"); if(t) t.focus(); });
-  cont.querySelectorAll("button[data-def-editar]").forEach(b => b.onclick = e => { e.stopPropagation(); const ya = EQ_FORM && EQ_FORM.tipo === "editdef" && EQ_FORM.clave === b.dataset.defEditar && (EQ_FORM.id||null) === (b.dataset.defId||null); EQ_FORM = ya ? null : { clave: b.dataset.defEditar, tipo:"editdef", id: b.dataset.defId || null }; render(); });
+  cont.querySelectorAll("button[data-def-editar]").forEach(b => b.onclick = e => { e.stopPropagation(); const ya = EQ_FORM && EQ_FORM.tipo === "editdef" && EQ_FORM.clave === b.dataset.defEditar && (EQ_FORM.id||null) === (b.dataset.defId||null); EQ_FORM = ya ? null : { clave: b.dataset.defEditar, tipo:"editdef", id: b.dataset.defId || null }; if(EQ_FORM && EQ_FORM.id && EQ_FORM.id === EQ_CIERRE) EQ_CIERRE = null; CIERRE_CAM = { id:null, fotos:[] }; render(); });
   cont.querySelectorAll("button[data-ed-def-borrar]").forEach(b => b.onclick = async e => { e.stopPropagation(); const id = b.dataset.edDefBorrar; const d = EQ.deficiencias.find(x => x.id === id); if(!d) return; if(!confirm(`¿Borrar la deficiencia ${id} de ${d.maquina}?\n\n"${d.descripcion}"\n\nSe marca como borrada en el Excel y deja de verse en la app.`)) return; b.disabled = true; try{ await cambiarEstadoDeficiencia(id, "BORRADA"); if(EQ_FORM && EQ_FORM.tipo === "editdef" && (EQ_FORM.id === id || !defsAbiertas(EQ.equipos.find(x => x.clave === EQ_FORM.clave)||{clave:""}).length)){ EQ_FORM = null; render(); } }catch(err){ aviso("Error: " + err.message); b.disabled = false; } });
   const ert = $("#eq-res-toggle"); if(ert) ert.onclick = e => { e.preventDefault(); EQ_RES_ABIERTO = !EQ_RES_ABIERTO; render(); };
   const erv = $("#eq-rev-toggle"); if(erv) erv.onclick = e => { e.preventDefault(); EQ_REV_ABIERTO = !EQ_REV_ABIERTO; render(); };
@@ -5559,7 +5622,21 @@ function render(){
   const nds = $("#nd-sec"); if(nds) nds.onchange = () => { ND_SEC = nds.value; const sel = $("#nd-clave"); if(sel && sel.tagName === "SELECT") sel.innerHTML = opcionesMaquinas(ND_SEC); };
   cont.querySelectorAll("[data-semdocs]").forEach(b => b.onclick = () => { EQ_FILTROS.semDocs = b.dataset.semdocs; render(); });
   cont.querySelectorAll("[data-semdef]").forEach(b => b.onclick = () => { EQ_FILTROS.estado = EQ_FILTROS.estado === b.dataset.semdef ? "" : b.dataset.semdef; render(); });
-  cont.querySelectorAll("button[data-def]").forEach(b => b.onclick = async e => { e.stopPropagation(); b.disabled = true; try{ await cambiarEstadoDeficiencia(b.dataset.def, b.dataset.nuevo); }catch(err){ aviso("Error: " + err.message); b.disabled = false; } });
+  cont.querySelectorAll("button[data-def]").forEach(b => b.onclick = async e => { e.stopPropagation(); b.disabled = true; const id = b.dataset.def, nuevo = b.dataset.nuevo;
+    try{ await cambiarEstadoDeficiencia(id, nuevo);
+      if(nuevo === "RESUELTA"){ EQ_CIERRE = id; CIERRE_CAM = { id:null, fotos:[] }; if(EQ_FORM && EQ_FORM.tipo === "editdef" && EQ_FORM.id === id) EQ_FORM = null; render(); } // v2.71: al resolver sale el recuadro para la foto o el vídeo de cómo ha quedado (opcional)
+      else if(EQ_CIERRE === id){ EQ_CIERRE = null; render(); }
+    }catch(err){ aviso("Error: " + err.message); b.disabled = false; } });
+  // v2.71: foto o vídeo de cómo ha quedado una deficiencia resuelta
+  cont.querySelectorAll("button[data-cierre-cam]").forEach(b => b.onclick = ev => { ev.stopPropagation(); const id = b.dataset.cierreCam; if(CIERRE_CAM.id !== id) CIERRE_CAM = { id, fotos:[] };
+    abrirCamara(async blob => { if(CIERRE_CAM.id !== id) CIERRE_CAM = { id, fotos:[] }; CIERRE_CAM.fotos.push(blob); const s = [...document.querySelectorAll("[data-cierre-cam-n]")].find(x => x.dataset.cierreCamN === id); if(s) s.textContent = `${CIERRE_CAM.fotos.length} con la cámara`; }); });
+  cont.querySelectorAll("button[data-cierre-guardar]").forEach(b => b.onclick = async ev => { ev.stopPropagation(); const id = b.dataset.cierreGuardar; const d = EQ.deficiencias.find(x => x.id === id); if(!d) return;
+    const inp = b.closest("[data-cierre-form]").querySelector("input[type=file]"); const archivos = [...((inp && inp.files) || []), ...(CIERRE_CAM.id === id ? CIERRE_CAM.fotos : [])];
+    if(!archivos.length){ aviso("Elige antes las fotos o el vídeo, o haz una foto."); return; }
+    b.disabled = true; b.textContent = "Guardando…";
+    try{ const r = await guardarCierreDef(d, archivos); CIERRE_CAM = { id:null, fotos:[] }; aviso(`Guardado en ${r.carpeta}: ${r.guardados.length === 1 ? "1 archivo" : r.guardados.length + " archivos"} de la ${id}.`); render(); }
+    catch(err){ aviso("No se ha guardado: " + err.message, true); if(b.isConnected){ b.disabled = false; b.textContent = "Guardar foto o vídeo"; } rellenarCierres(); } });
+  const bcc = $("#cierre-cerrar"); if(bcc) bcc.onclick = () => { EQ_CIERRE = null; CIERRE_CAM = { id:null, fotos:[] }; render(); };
   const bpar = $("#eq-parte"); if(bpar) bpar.onclick = () => parteMantenimiento();
   const bnd = $("#eq-nueva-def"); if(bnd) bnd.onclick = () => { EQ_NUEVA_DEF = true; render(); const t = $("#nd-desc"); if(t) t.focus(); };
   const ndc = $("#nd-cancelar"); if(ndc) ndc.onclick = () => { ND_FOTOS_CAM = []; EQ_NUEVA_DEF = false; EQ_FORM = null; render(); };
@@ -5656,6 +5733,7 @@ function algoAMedias(){ // lo que hay a medio hacer y se perdería al volver a l
   if(/por guardar/.test(($("#eq-cambios") || {}).textContent || "")) return "cambios sin guardar en una máquina";
   if($("#form-def") && ((($("#nd-desc") || {}).value || "").trim() || ND_FOTOS_CAM.length || formTocado($("#form-def")))) return "una deficiencia a medias";
   { const d = $("#contenido textarea[data-ed-def]"); if(d && formTocado(d.closest(".editor"))) return "una deficiencia a medias"; }
+  if(CIERRE_CAM.fotos.length || [...document.querySelectorAll("#contenido input[data-cierre-fich]")].some(i => i.files && i.files.length)) return "la foto o el vídeo de una deficiencia sin guardar";
   if(formTocado($("#contenido .esc-editor"))) return "cambios sin guardar en una escalera";
   if(escritoSinGuardar($("#contenido"))) return "algo escrito sin guardar";
   return "";
