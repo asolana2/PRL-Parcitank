@@ -1793,14 +1793,18 @@ async function buscarEquiposEnMaquinas(){
 }
 /* ---------- v2.71: foto o vídeo de cómo ha quedado una deficiencia resuelta («mira, se cerró por esto») ----------
    Van a la subcarpeta DEFICIENCIAS de la máquina como «DEF D012 RESUELTA aaaa-mm-dd N.ext». No se apuntan en el Excel: la app los encuentra por el nombre
-   (también los que se copien a mano con ese principio). Las fotos se reducen como las de una deficiencia nueva; un vídeo, o lo que no se pueda leer como foto, se guarda tal cual */
+   (también los que se copien a mano con ese principio). Las fotos se reducen como las de una deficiencia nueva; un vídeo, o lo que no se pueda leer como foto, se guarda tal cual.
+   Se guardan en el momento de elegirlos o de hacer la foto, como «📷 Añadir fotos» de la ficha: no hay nada «por guardar» que se pueda perder */
 let EQ_CIERRE = null;                      // id de la deficiencia con el recuadro «foto o vídeo de cómo ha quedado» abierto (sale al pulsar «Resuelta»)
-let CIERRE_CAM = { id:null, fotos:[] };    // fotos hechas con la cámara para ese recuadro (o para el de «Editar»), todavía sin guardar
+let COLA_CIERRE = Promise.resolve();       // los guardados van de uno en uno: dos a la vez podrían coger el mismo número de archivo
+const CIERRE_GUARDANDO = {};               // id de la deficiencia → guardados en marcha (para pintar «Guardando…»)
+const TXT_CIERRE = "Se guardan al elegirlos o al hacer la foto.";
 const esVideo = n => /\.(mp4|mov|m4v|webm|avi|mkv|3gp|wmv)$/i.test(n || "");
 const seVeComoFoto = n => /\.(jpe?g|png|webp|gif)$/i.test(n || ""); // .heic no: Edge no lo pinta
 const reCierre = id => new RegExp("^DEF\\s+" + String(id).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s+RESUELTA(?![A-Za-z0-9])", "i");
 function cierreDe(c, d){ if(!c || !d || !d.id) return []; const re = reCierre(d.id); return (c.defArchivos || []).filter(f => re.test(f.nombre)); }
-async function guardarCierreDef(d, archivos){ // archivos: File o Blob (los de la cámara no traen nombre)
+function guardarCierreDef(d, archivos){ const p = COLA_CIERRE.then(() => guardarCierreDef1(d, archivos)); COLA_CIERRE = p.catch(() => {}); return p; }
+async function guardarCierreDef1(d, archivos){ // archivos: File o Blob (los de la cámara no traen nombre)
   if(!CARPETA_MAQ) throw new Error("abre antes la carpeta MÁQUINAS (botón «Abrir la carpeta MÁQUINAS»).");
   if(!d.id) throw new Error("esta deficiencia no tiene ID en el Excel.");
   const e = EQ.equipos.find(m => m.clave === d.clave); if(!e) throw new Error("la máquina de esta deficiencia ya no está en el Excel.");
@@ -1810,7 +1814,7 @@ async function guardarCierreDef(d, archivos){ // archivos: File o Blob (los de l
   const fecha = d.cierre ? ISO(d.cierre) : ISO(HOY_UTC); const guardados = []; let k = 0;
   try{
     for(const f of archivos){
-      const esV = esVideo(f.name) || /^video\//.test(f.type || ""); let blob = f, ext = ((f.name || "").match(/\.([A-Za-z0-9]{1,5})$/) || [])[1]; ext = ext ? ext.toLowerCase() : (esV ? "mp4" : "jpg");
+      const esV = esVideo(f.name) || /^video\//.test(f.type || ""); let blob = f, ext = ((f.name || "").match(/\.([A-Za-z0-9]{1,8})$/) || [])[1]; ext = ext ? ext.toLowerCase() : (esV ? "mp4" : "jpg");
       if(!esV){ const r = await reducirFoto(f); if(r !== f){ blob = r; ext = "jpg"; } } // si no se puede leer como imagen (.heic, un PDF…), se guarda tal cual
       let base; do { k++; base = `DEF ${d.id} RESUELTA ${fecha} ${k}`; } while(hay.has(base.toLowerCase()));
       const fh = await dir.getFileHandle(`${base}.${ext}`, { create:true }); const w = await fh.createWritable(); await w.write(blob); await w.close(); hay.add(base.toLowerCase()); guardados.push(`${base}.${ext}`);
@@ -1819,30 +1823,41 @@ async function guardarCierreDef(d, archivos){ // archivos: File o Blob (los de l
   finally{ delete CACHE_MAQ[e.clave]; }
   return { guardados, carpeta: c.nombre + "/" + dir.name };
 }
-/* el trozo de formulario: lo que ya hay guardado y los botones para añadir. Sale en el recuadro de «Resuelta» y en el de «Editar» de una deficiencia resuelta */
+/* el trozo de formulario: lo que ya hay guardado y cómo añadir más. Sale en el recuadro de «Resuelta» y en el de «Editar» de una deficiencia resuelta */
 function bloqueCierreDef(d){
-  const id = escEq(d.id), n = CIERRE_CAM.id === d.id ? CIERRE_CAM.fotos.length : 0;
+  const id = escEq(d.id);
   return `<div class="cierre-def" data-cierre-form="${id}"><b class="mini">Foto o vídeo de cómo ha quedado</b><div class="cierre-hay" data-cierre-def="${id}" data-cierre-pre="Ya guardado:"></div>
-    ${!d.id ? `<div class="mini">Esta deficiencia no tiene ID en el Excel: no se le pueden añadir.</div>` : CARPETA_MAQ ? `<div style="display:flex; flex-wrap:wrap; gap:.5rem .8rem; align-items:end"><label>Fotos o vídeo<input type="file" data-cierre-fich="${id}" accept="image/*,video/*" multiple></label>${navigator.mediaDevices ? `<button class="btn2" type="button" data-cierre-cam="${id}">Hacer foto</button><span class="mini" data-cierre-cam-n="${id}">${n ? `${n} con la cámara` : ""}</span>` : ""}<button class="primario" type="button" data-cierre-guardar="${id}">Guardar foto o vídeo</button></div>`
+    ${!d.id ? `<div class="mini">Esta deficiencia no tiene ID en el Excel: no se le pueden añadir.</div>` : CARPETA_MAQ ? `<div style="display:flex; flex-wrap:wrap; gap:.5rem .8rem; align-items:end"><label>Añadir fotos o un vídeo<input type="file" data-cierre-fich="${id}" accept="image/*,video/*" multiple></label>${navigator.mediaDevices ? `<button class="btn2" type="button" data-cierre-cam="${id}">Hacer foto</button>` : ""}<span class="mini" data-cierre-est="${id}">${CIERRE_GUARDANDO[d.id] ? "Guardando…" : TXT_CIERRE}</span></div>`
       : `<div class="mini">Para añadirlos, abre antes la carpeta MÁQUINAS (botón «Abrir la carpeta MÁQUINAS», arriba).</div>`}</div>`;
+}
+/* guarda en el momento lo elegido o la foto hecha y vuelve a pintar lo que hay guardado. No repinta la pantalla entera: se perdería lo que se esté escribiendo en «Editar» */
+async function anadirCierre(id, archivos, inp){
+  const d = EQ && EQ.deficiencias.find(x => x.id === id); if(!d || !archivos.length) return;
+  const pon = () => { for(const el of document.querySelectorAll("[data-cierre-est]")) if(el.dataset.cierreEst === id) el.textContent = CIERRE_GUARDANDO[id] ? "Guardando…" : TXT_CIERRE; };
+  CIERRE_GUARDANDO[id] = (CIERRE_GUARDANDO[id] || 0) + 1; if(inp) inp.disabled = true; pon();
+  try{ const r = await guardarCierreDef(d, archivos); aviso(`Guardado en ${r.carpeta}: ${r.guardados.length === 1 ? "1 archivo" : r.guardados.length + " archivos"} de la ${id}.`); }
+  catch(err){ aviso("No se ha guardado: " + err.message, true); }
+  finally{ CIERRE_GUARDANDO[id]--; if(!CIERRE_GUARDANDO[id]) delete CIERRE_GUARDANDO[id]; }
+  if(inp && inp.isConnected){ inp.value = ""; inp.disabled = false; } pon(); rellenarCierres();
 }
 /* el recuadro que sale al pulsar «Resuelta»: es opcional y se cierra con «Cerrar» */
 function formCierreDef(d, e){
   return `<div class="editor no-imprimir" id="form-cierre" style="align-items:stretch; flex-direction:column; gap:.45rem"><div><b>${escEq(e ? e.nombre : d.maquina)} · ${escEq(d.id)} resuelta</b> <span class="mini">Si tienes una foto o un vídeo de cómo ha quedado, añádelo aquí. Es opcional: también se puede poner más adelante, con «Editar».</span></div>${bloqueCierreDef(d)}<div><button class="btn2" id="cierre-cerrar">Cerrar</button></div></div>`;
 }
 /* pinta, en cada hueco [data-cierre-def], lo que hay guardado de esa deficiencia: las fotos en pequeño y un enlace por cada vídeo (se abren en otra pestaña) */
+let TURNO_CIERRES = 0; // si se vuelve a llamar mientras lee una carpeta, la vuelta vieja lo deja: solo pinta la última
 async function rellenarCierres(){
-  const cont = $("#contenido"); if(!cont || !EQ) return; const huecos = [...cont.querySelectorAll("[data-cierre-def]")]; if(!huecos.length) return;
+  const turno = ++TURNO_CIERRES; const cont = $("#contenido"); if(!cont || !EQ) return; const huecos = [...cont.querySelectorAll("[data-cierre-def]")]; if(!huecos.length) return;
   for(const el of huecos){
     const d = EQ.deficiencias.find(x => x.id === el.dataset.cierreDef), e = d && EQ.equipos.find(m => m.clave === d.clave); if(!e) continue;
     let fs = []; try{ fs = cierreDe(await contenidoCache(e), d); }catch(err){ continue; }
-    if(!el.isConnected) continue; // se ha vuelto a pintar mientras se leía la carpeta
+    if(turno !== TURNO_CIERRES) return; if(!el.isConnected) continue; // se ha vuelto a pintar mientras se leía la carpeta
     if(!fs.length){ el.innerHTML = ""; continue; }
     const partes = []; let nv = 0; const variosV = fs.filter(f => esVideo(f.nombre)).length > 1;
     for(const f of fs){ let u; try{ u = await urlDe(f.handle); }catch(err){ partes.push(`<span class="mini">${escEq(f.nombre)} (no se puede abrir)</span>`); continue; }
       partes.push(seVeComoFoto(f.nombre) ? `<a href="${u}" target="_blank" rel="noopener" title="${escEq(f.nombre)}"><img src="${u}" alt=""></a>`
         : `<a href="${u}" target="_blank" rel="noopener" class="cierre-enlace" title="${escEq(f.nombre)}">${esVideo(f.nombre) ? `🎬 Vídeo${variosV ? " " + (++nv) : ""}` : "📎 " + escEq(f.nombre)}</a>`); }
-    if(el.isConnected) el.innerHTML = (el.dataset.cierrePre ? `<span class="mini">${escEq(el.dataset.cierrePre)}</span>` : "") + partes.join("");
+    if(turno !== TURNO_CIERRES) return; if(el.isConnected) el.innerHTML = (el.dataset.cierrePre ? `<span class="mini">${escEq(el.dataset.cierrePre)}</span>` : "") + partes.join("");
   }
 }
 /* ---------- deficiencias nuevas: en el PC se escriben en el Excel de equipos; en el móvil se guardan y se envían ---------- */
@@ -2338,9 +2353,12 @@ async function escribirMaterial(prepara, comprueba){
 /* v2.70: los datos de la escalera que se escriben a mano (ficha y «＋ Nueva escalera»): columna del Excel, nombre en pantalla y dónde lo guarda la app al leer */
 const DATOS_ESC = [ { col:"TIPO", id:"tipo", t:"Tipo", prop:"tipo", may:true }, { col:"MARCA", id:"marca", t:"Marca", prop:"marca", may:true }, { col:"MODELO", id:"modelo", t:"Modelo", prop:"modelo", may:true }, { col:"ALTURA", id:"altura", t:"Altura", prop:"altura" }, // may (v2.71): se guarda en MAYÚSCULAS, como la sección, para que en el filtro no salgan repetidos («Tijera» y «TIJERA»)
   { col:"CODIGO BARRAS", id:"barras", t:"Código de barras", prop:"barras" }, { col:"LOTE", id:"lote", t:"Lote", prop:"lote" }, { col:"Nº PLACA", id:"placa", t:"Nº de placa", prop:"placa" } ];
-/* v2.71: tipo, marca y modelo se guardan como la sección: si otra escalera ya lo tiene escrito de otra forma (con minúsculas, sin tilde…), como la que ya hay; si es nuevo, en mayúsculas.
-   Así el filtro no saca lo mismo dos veces. «menos» es la escalera de la ficha: su propia forma de escribirlo no cuenta */
-const datoEsc = (d, txt, menos) => { const t = String(txt == null ? "" : txt).trim(); if(!d.may || !t) return t; const k = normId(t), ya = MAT.escaleras.filter(x => x !== menos && x[d.prop] && normId(x[d.prop]) === k).map(x => x[d.prop]); if(ya.includes(t)) return t; return ya.find(v => v === t.toUpperCase()) || ya.find(v => v === v.toUpperCase()) || ya[0] || t.toUpperCase(); };
+/* v2.71: tipo, marca y modelo se guardan en mayúsculas al escribirlos a mano (ficha y «＋ Nueva escalera»). Solo cambian las mayúsculas: nunca letras, tildes ni espacios.
+   Una excepción, para que el filtro no saque lo mismo dos veces: si se escribe con minúsculas y otra escalera ya lo tiene igual salvo por las mayúsculas
+   (como «Fabricación propia (Parcitank)», también al elegirlo de la lista), se guarda como esa; primero, la que esté toda en mayúsculas.
+   Escrito todo en mayúsculas se guarda siempre tal cual: así se puede corregir a mano. «menos» es la escalera de la ficha: su propia forma de escribirlo no cuenta */
+const datoEsc = (d, txt, menos) => { const t = String(txt == null ? "" : txt).trim(); if(!d.may || !t) return t; const U = t.toUpperCase(); if(t === U) return U;
+  const ya = MAT.escaleras.filter(x => x !== menos && x[d.prop] && x[d.prop].toUpperCase() === U).map(x => x[d.prop]); return ya.includes(U) ? U : ya.includes(t) ? t : (ya[0] || U); };
 const seccionEsc = (sel, otra) => { if(sel !== "__otra") return sel; const t = otra.trim(); if(!t) return ""; return MAT.secciones.find(x => normId(x) === normId(t)) || t.toUpperCase(); }; // «Otra…»: si ya existe escrita de otra forma (sin tilde…), la que ya hay
 const FECHA_OK = v => !v || (/^\d{4}-\d{2}-\d{2}$/.test(v) && +v.slice(0,4) >= 1900 && +v.slice(0,4) <= 2100);
 const siguienteCodigoEsc = () => { let maxN = 0; for(const x of MAT.escaleras.concat(MAT.historial)){ const n = numEsc(x.codigo); if(n) maxN = Math.max(maxN, n); } return "E" + (maxN + 1); };
@@ -2395,7 +2413,7 @@ async function guardarFichaEsc(e){
   const nuevos = { "SECCION": sec, "ESTADO": q("esc-f-est").value, "RESULTADO": q("esc-f-res").value, "GRABADA": q("esc-f-grab").value, "OBSERVACIONES": q("esc-f-obs").value.trim() };
   const ult = q("esc-f-ult").value;
   const antes = { "SECCION": e.seccion, "ESTADO": e.estado, "RESULTADO": e.resultado, "GRABADA": e.grabada ? "SI" : "NO", "OBSERVACIONES": e.obs };
-  for(const d of DATOS_ESC){ const i = q("esc-f-" + d.id); if(i && i.value !== i.defaultValue.replace(/[\r\n]/g, "")){ nuevos[d.col] = datoEsc(d, i.value, e); antes[d.col] = e[d.prop]; } } // v2.70: tipo, marca, modelo, altura, código de barras, lote y nº de placa
+  for(const d of DATOS_ESC){ const i = q("esc-f-" + d.id); if(i && i.value !== i.defaultValue.replace(/[\r\n]/g, "")){ const v = datoEsc(d, i.value, e); if(v === e[d.prop]) i.value = i.defaultValue; else { nuevos[d.col] = v; antes[d.col] = e[d.prop]; } } } // v2.70: tipo, marca, modelo, altura, código de barras, lote y nº de placa
   const fab = q("esc-f-fab") ? q("esc-f-fab").value : null, cambiaFab = fab !== null && fab !== q("esc-f-fab").defaultValue;
   const cambiosN = Object.keys(nuevos).filter(k => nuevos[k] !== antes[k]); const cambiaFecha = ult !== (e.ultima ? ISO(e.ultima) : "");
   if(!cambiosN.length && !cambiaFecha && !cambiaFab){ aviso("No has cambiado nada."); return; }
@@ -5587,7 +5605,7 @@ function render(){
     const fila = b.closest("td"); fila.querySelectorAll("button").forEach(x => x.disabled = true); b.textContent = "…"; EQ_FORM = null;
     try{ await marcarRevision(b.dataset.revMarca, b.dataset.estado); }catch(err){ aviso("No se ha guardado: " + err.message); } render(); });
   cont.querySelectorAll("button[data-def-nueva]").forEach(b => b.onclick = e => { e.stopPropagation(); ND_FOTOS_CAM = []; EQ_FORM = { clave: b.dataset.defNueva, tipo:"def", desde1215:true }; render(); const t = $("#nd-desc"); if(t) t.focus(); });
-  cont.querySelectorAll("button[data-def-editar]").forEach(b => b.onclick = e => { e.stopPropagation(); const ya = EQ_FORM && EQ_FORM.tipo === "editdef" && EQ_FORM.clave === b.dataset.defEditar && (EQ_FORM.id||null) === (b.dataset.defId||null); EQ_FORM = ya ? null : { clave: b.dataset.defEditar, tipo:"editdef", id: b.dataset.defId || null }; if(EQ_FORM && EQ_FORM.id && EQ_FORM.id === EQ_CIERRE) EQ_CIERRE = null; CIERRE_CAM = { id:null, fotos:[] }; render(); });
+  cont.querySelectorAll("button[data-def-editar]").forEach(b => b.onclick = e => { e.stopPropagation(); const ya = EQ_FORM && EQ_FORM.tipo === "editdef" && EQ_FORM.clave === b.dataset.defEditar && (EQ_FORM.id||null) === (b.dataset.defId||null); EQ_FORM = ya ? null : { clave: b.dataset.defEditar, tipo:"editdef", id: b.dataset.defId || null }; render(); });
   cont.querySelectorAll("button[data-ed-def-borrar]").forEach(b => b.onclick = async e => { e.stopPropagation(); const id = b.dataset.edDefBorrar; const d = EQ.deficiencias.find(x => x.id === id); if(!d) return; if(!confirm(`¿Borrar la deficiencia ${id} de ${d.maquina}?\n\n"${d.descripcion}"\n\nSe marca como borrada en el Excel y deja de verse en la app.`)) return; b.disabled = true; try{ await cambiarEstadoDeficiencia(id, "BORRADA"); if(EQ_FORM && EQ_FORM.tipo === "editdef" && (EQ_FORM.id === id || !defsAbiertas(EQ.equipos.find(x => x.clave === EQ_FORM.clave)||{clave:""}).length)){ EQ_FORM = null; render(); } }catch(err){ aviso("Error: " + err.message); b.disabled = false; } });
   const ert = $("#eq-res-toggle"); if(ert) ert.onclick = e => { e.preventDefault(); EQ_RES_ABIERTO = !EQ_RES_ABIERTO; render(); };
   const erv = $("#eq-rev-toggle"); if(erv) erv.onclick = e => { e.preventDefault(); EQ_REV_ABIERTO = !EQ_REV_ABIERTO; render(); };
@@ -5626,19 +5644,13 @@ function render(){
   cont.querySelectorAll("[data-semdef]").forEach(b => b.onclick = () => { EQ_FILTROS.estado = EQ_FILTROS.estado === b.dataset.semdef ? "" : b.dataset.semdef; render(); });
   cont.querySelectorAll("button[data-def]").forEach(b => b.onclick = async e => { e.stopPropagation(); b.disabled = true; const id = b.dataset.def, nuevo = b.dataset.nuevo;
     try{ await cambiarEstadoDeficiencia(id, nuevo);
-      if(nuevo === "RESUELTA"){ EQ_CIERRE = id; CIERRE_CAM = { id:null, fotos:[] }; if(EQ_FORM && EQ_FORM.tipo === "editdef" && EQ_FORM.id === id) EQ_FORM = null; render(); } // v2.71: al resolver sale el recuadro para la foto o el vídeo de cómo ha quedado (opcional)
+      if(nuevo === "RESUELTA"){ EQ_CIERRE = id; if(EQ_FORM && EQ_FORM.tipo === "editdef" && EQ_FORM.id === id) EQ_FORM = null; render(); } // v2.71: al resolver sale el recuadro para la foto o el vídeo de cómo ha quedado (opcional)
       else if(EQ_CIERRE === id){ EQ_CIERRE = null; render(); }
     }catch(err){ aviso("Error: " + err.message); b.disabled = false; } });
   // v2.71: foto o vídeo de cómo ha quedado una deficiencia resuelta
-  cont.querySelectorAll("button[data-cierre-cam]").forEach(b => b.onclick = ev => { ev.stopPropagation(); const id = b.dataset.cierreCam; if(CIERRE_CAM.id !== id) CIERRE_CAM = { id, fotos:[] };
-    abrirCamara(async blob => { if(CIERRE_CAM.id !== id) CIERRE_CAM = { id, fotos:[] }; CIERRE_CAM.fotos.push(blob); const s = [...document.querySelectorAll("[data-cierre-cam-n]")].find(x => x.dataset.cierreCamN === id); if(s) s.textContent = `${CIERRE_CAM.fotos.length} con la cámara`; }); });
-  cont.querySelectorAll("button[data-cierre-guardar]").forEach(b => b.onclick = async ev => { ev.stopPropagation(); const id = b.dataset.cierreGuardar; const d = EQ.deficiencias.find(x => x.id === id); if(!d) return;
-    const inp = b.closest("[data-cierre-form]").querySelector("input[type=file]"); const archivos = [...((inp && inp.files) || []), ...(CIERRE_CAM.id === id ? CIERRE_CAM.fotos : [])];
-    if(!archivos.length){ aviso("Elige antes las fotos o el vídeo, o haz una foto."); return; }
-    b.disabled = true; b.textContent = "Guardando…";
-    try{ const r = await guardarCierreDef(d, archivos); CIERRE_CAM = { id:null, fotos:[] }; aviso(`Guardado en ${r.carpeta}: ${r.guardados.length === 1 ? "1 archivo" : r.guardados.length + " archivos"} de la ${id}.`); render(); }
-    catch(err){ aviso("No se ha guardado: " + err.message, true); if(b.isConnected){ b.disabled = false; b.textContent = "Guardar foto o vídeo"; } rellenarCierres(); } });
-  const bcc = $("#cierre-cerrar"); if(bcc) bcc.onclick = () => { EQ_CIERRE = null; CIERRE_CAM = { id:null, fotos:[] }; render(); };
+  cont.querySelectorAll("input[data-cierre-fich]").forEach(i => { i.onclick = ev => ev.stopPropagation(); i.onchange = () => anadirCierre(i.dataset.cierreFich, [...i.files], i); });
+  cont.querySelectorAll("button[data-cierre-cam]").forEach(b => b.onclick = ev => { ev.stopPropagation(); const id = b.dataset.cierreCam; abrirCamara(blob => anadirCierre(id, [blob])); });
+  const bcc = $("#cierre-cerrar"); if(bcc) bcc.onclick = () => { EQ_CIERRE = null; render(); };
   const bpar = $("#eq-parte"); if(bpar) bpar.onclick = () => parteMantenimiento();
   const bnd = $("#eq-nueva-def"); if(bnd) bnd.onclick = () => { EQ_NUEVA_DEF = true; render(); const t = $("#nd-desc"); if(t) t.focus(); };
   const ndc = $("#nd-cancelar"); if(ndc) ndc.onclick = () => { ND_FOTOS_CAM = []; EQ_NUEVA_DEF = false; EQ_FORM = null; render(); };
@@ -5735,7 +5747,6 @@ function algoAMedias(){ // lo que hay a medio hacer y se perdería al volver a l
   if(/por guardar/.test(($("#eq-cambios") || {}).textContent || "")) return "cambios sin guardar en una máquina";
   if($("#form-def") && ((($("#nd-desc") || {}).value || "").trim() || ND_FOTOS_CAM.length || formTocado($("#form-def")))) return "una deficiencia a medias";
   { const d = $("#contenido textarea[data-ed-def]"); if(d && formTocado(d.closest(".editor"))) return "una deficiencia a medias"; }
-  if(CIERRE_CAM.fotos.length || [...document.querySelectorAll("#contenido input[data-cierre-fich]")].some(i => i.files && i.files.length)) return "la foto o el vídeo de una deficiencia sin guardar";
   if(formTocado($("#contenido .esc-editor"))) return "cambios sin guardar en una escalera";
   if(escritoSinGuardar($("#contenido"))) return "algo escrito sin guardar";
   return "";
