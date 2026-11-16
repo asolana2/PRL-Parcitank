@@ -951,6 +951,8 @@ tr.fila-total td{font-weight:800; border-top:2px solid var(--line);}
 .cierre-hay img, .fe-cierre img{width:112px; height:84px; object-fit:cover; border-radius:8px; border:1px solid var(--line); display:block;}
 .cierre-enlace{display:inline-block; padding:.3rem .65rem; border:1px solid var(--line); border-radius:8px; background:#fff; text-decoration:none; font-size:.85rem; white-space:nowrap;}
 .fe-cierre{margin:.35rem 1rem 0 calc(3rem + 110px);} /* en la ficha, debajo del texto de la deficiencia resuelta (y sin su tono apagado) */
+/* con la cámara abierta, los avisos salen por encima de ella y arriba, para no tapar «Capturar» y «Cerrar» (antes quedaban detrás: no se veía si una foto no se había guardado) */
+body:has(#camara) .toast{z-index:10000; bottom:auto !important; top:1.2rem;}
 /* pantalla estrecha (tableta en vertical): la tabla no cabe y hay que desplazarla a la derecha para ver los botones; el recuadro que sale debajo de una fila se queda a la vista */
 @media (max-width:1250px){ tr.fila-form .editor{position:sticky; left:.5rem; max-width:calc(100vw - 3.5rem); box-sizing:border-box; white-space:normal;} }
 </style>
@@ -1663,12 +1665,12 @@ function vistaEquipos(){
     html += `<div class="bloque"><h3>Revisión 1215 <span class="cnt">${orden.length}</span><span class="der no-imprimir"><button class="btn2" id="eq-listado-revisor" title="Excel con todas las máquinas tal como están ahora: estado y lo que queda por reparar">Listado para el revisor</button></span></h3>
       <table class="rev1215"><thead><tr><th>Foto</th><th>Máquina</th><th>Deficiencias</th><th class="no-imprimir"></th></tr></thead><tbody>`;
     const cuadro = (cl, sym, tit, attrs) => `<button class="rv-btn ${cl}" title="${tit}" aria-label="${tit}" ${attrs}>${sym}</button>`;
-    for(const e of orden){ const defs = defsAbiertas(e);
+    for(const e of orden){ const defs = defsAbiertas(e); const pend = REV_PEND.has(e.clave) ? " disabled" : ""; // su guardado está esperando turno: los botones siguen apagados
       const txtDefs = defs.length ? defs.map(d => `<div class="rv-def-txt">${String(d.descripcion||"").replace(/</g,"&lt;")}</div>`).join("") : `<span class="chip c-ok">Ninguna</span>`;
       const botones = !puede ? "" : [ // en cada pestaña, solo los que llevan a otro sitio; + siempre (en Deficiencia sirve para añadir otra)
-        selV !== "ok" ? cuadro("rv-ok", "✓", "Revisada", `data-rev-marca="${e.clave}" data-estado="OK"`) : "",
-        cuadro("rv-def", "+", "Añadir deficiencia", `data-def-nueva="${e.clave}"`),
-        selV !== "sin" ? cuadro("rv-sin", "✕", "Sin revisar", `data-rev-marca="${e.clave}" data-estado="SIN REVISAR"`) : "" ].join("");
+        selV !== "ok" ? cuadro("rv-ok", "✓", "Revisada", `data-rev-marca="${e.clave}" data-estado="OK"${pend}`) : "",
+        cuadro("rv-def", "+", "Añadir deficiencia", `data-def-nueva="${e.clave}"${pend}`),
+        selV !== "sin" ? cuadro("rv-sin", "✕", "Sin revisar", `data-rev-marca="${e.clave}" data-estado="SIN REVISAR"${pend}`) : "" ].join("");
       html += `<tr class="fila-persona" data-equipo="${e.clave}"><td class="foto-eq" data-thumb="${e.clave}"><span class="mini" style="color:var(--gris)">…</span></td><td class="rv-maq"><b>${e.nombre}</b><br><span class="mini">${e.seccion}${(e.pk||e.clave) ? ` · ${e.pk || e.clave}` : ""}</span></td><td class="rv-defs">${txtDefs}${puede && defs.length ? ` <button class="btn2" data-def-editar="${e.clave}" style="font-size:.75rem; padding:.1rem .45rem; margin-top:.25rem">Editar</button>` : ""}</td><td class="no-imprimir rv-acc">${botones}</td></tr>`;
       if(EQ_FORM && EQ_FORM.clave === e.clave) html += `<tr class="fila-form"><td colspan="4" style="padding:0">${EQ_FORM.tipo === "editdef" ? formEditDefs(e) : formNuevaDef(e)}</td></tr>`;
     }
@@ -1817,22 +1819,24 @@ async function guardarCierreDef1(d, archivos){ // archivos: File o Blob (los de 
   let c = carpetaDe(e); if(!c) c = await crearCarpetaMaquina(e);
   const dir = (await subcarpeta(c.handle, "DEFICIEN")) || await c.handle.getDirectoryHandle("DEFICIENCIAS", { create:true }); // la misma que lee la app
   const hay = new Set(); for await (const [n] of dir.entries()) hay.add(n.replace(/\.[^.]*$/, "").toLowerCase()); // sin la extensión: «… 1.jpg» y «… 1.mp4» no pueden convivir
-  const fecha = d.cierre ? ISO(d.cierre) : ISO(HOY_UTC); const guardados = []; let k = 0;
+  const fecha = d.cierre ? ISO(d.cierre) : ISO(HOY_UTC); const guardados = [], vacios = []; let k = 0, i = 0;
   try{
-    for(const f of archivos){
-      if(!f.size) throw new Error(`«${f.name || "la foto"}» está vacío (0 bytes)`);
-      const esV = esVideo(f.name) || /^video\//.test(f.type || ""); let blob = f, ext = ((f.name || "").match(/\.([A-Za-z0-9]{1,8})$/) || [])[1]; ext = ext ? ext.toLowerCase() : (esV ? "mp4" : "jpg");
+    for(; i < archivos.length; i++){ const f = archivos[i];
+      if(!f.size){ vacios.push(f.name || "la foto"); continue; } // un archivo vacío no se guarda (y se dice), pero los demás sí
+      const esV = esVideo(f.name) || /^video\//.test(f.type || ""); let blob = f, ext = (((f.name || "").match(/\.([A-Za-z0-9]{1,8})$/) || [])[1] || "").toLowerCase();
       if(!esV){ const r = await reducirFoto(f); if(r !== f){ blob = r; ext = "jpg"; } } // si no se puede leer como imagen (.heic, un PDF…), se guarda tal cual
-      let base; do { k++; base = `DEF ${d.id} RESUELTA ${fecha} ${k}`; } while(hay.has(base.toLowerCase()));
-      const nombre = `${base}.${ext}`; const fh = await dir.getFileHandle(nombre, { create:true }); let w = null;
+      if(!ext){ const sub = ((f.type || "").split("/")[1] || "").toLowerCase(); ext = esV ? "mp4" : (/^[a-z0-9]{2,5}$/.test(sub) ? sub : "dat"); } // sin extensión y sin poder leerlo como foto: no se le pone «.jpg»
+      let base, nombre; for(;;){ k++; base = `DEF ${d.id} RESUELTA ${fecha} ${k}`; if(hay.has(base.toLowerCase())) continue; nombre = `${base}.${ext}`;
+        try{ await dir.getFileHandle(nombre); hay.add(base.toLowerCase()); }catch(x){ break; } } // si entretanto ha llegado de fuera uno con ese nombre (OneDrive, otra ventana), se coge el número siguiente
+      const fh = await dir.getFileHandle(nombre, { create:true }); let w = null;
       try{ w = await fh.createWritable(); await w.write(blob); await w.close(); }
-      catch(err){ try{ if(w) await w.abort(); }catch(x){} try{ await dir.removeEntry(nombre); }catch(x){} throw err; } // que no quede un archivo vacío con ese nombre: la app lo enseñaría como guardado
+      catch(err){ try{ if(w) await w.abort(); }catch(x){} try{ if(!(await fh.getFile()).size) await dir.removeEntry(nombre); }catch(x){} throw err; } // que no quede un archivo vacío con ese nombre: la app lo enseñaría como guardado
       hay.add(base.toLowerCase()); guardados.push(nombre);
     }
-  }catch(err){ const faltan = archivos.slice(guardados.length).map(f => f.name || "la foto");
-    throw new Error(String(err.message || err).replace(/\.\s*$/, "") + (archivos.length > 1 ? `. Guardados: ${guardados.length} de ${archivos.length}. Sin guardar: ${faltan.join(", ")}` : "")); }
+  }catch(err){ const faltan = archivos.slice(i).filter(f => f.size).map(f => f.name || "la foto"), eran = archivos.filter(f => f.size).length;
+    throw new Error(String(err.message || err).replace(/\.\s*$/, "") + (eran > 1 ? `. Guardados: ${guardados.length} de ${eran}. Sin guardar: ${faltan.join(", ")}` : "")); }
   finally{ delete CACHE_MAQ[e.clave]; VERS_MAQ[e.clave] = (VERS_MAQ[e.clave] || 0) + 1; }
-  return { guardados, carpeta: c.nombre + "/" + dir.name };
+  return { guardados, vacios, carpeta: c.nombre + "/" + dir.name };
 }
 /* el trozo de formulario: lo que ya hay guardado y cómo añadir más. Sale en el recuadro de «Resuelta» y en el de «Editar» de una deficiencia resuelta */
 function bloqueCierreDef(d){
@@ -1846,7 +1850,8 @@ async function anadirCierre(id, archivos, inp){
   const d = EQ && EQ.deficiencias.find(x => x.id === id); if(!d || !archivos.length) return;
   const pon = () => { for(const el of document.querySelectorAll("[data-cierre-est]")) if(el.dataset.cierreEst === id) el.textContent = CIERRE_GUARDANDO[id] ? "Guardando…" : TXT_CIERRE; };
   CIERRE_GUARDANDO[id] = (CIERRE_GUARDANDO[id] || 0) + 1; if(inp) inp.disabled = true; pon();
-  try{ const r = await guardarCierreDef(d, archivos); aviso(`Guardado en ${r.carpeta}: ${r.guardados.length === 1 ? "1 archivo" : r.guardados.length + " archivos"} de la ${id}.`); }
+  try{ const r = await guardarCierreDef(d, archivos); if(r.guardados.length) aviso(`Guardado en ${r.carpeta}: ${r.guardados.length === 1 ? "1 archivo" : r.guardados.length + " archivos"} de la ${id}.`);
+    if(r.vacios.length) aviso(`No se ha guardado ${r.vacios.map(n => `«${n}»`).join(", ")}: ${r.vacios.length === 1 ? "está vacío" : "están vacíos"} (0 bytes).`, true); }
   catch(err){ aviso("No se ha guardado: " + err.message, true); }
   finally{ CIERRE_GUARDANDO[id]--; if(!CIERRE_GUARDANDO[id]) delete CIERRE_GUARDANDO[id]; }
   if(inp && inp.isConnected){ inp.value = ""; inp.disabled = false; } pon(); rellenarCierres();
@@ -1940,7 +1945,20 @@ async function guardarNuevaDef(){
 /* v2.71: los guardados en el Excel de equipos van de uno en uno. Dos a la vez (por ejemplo, «Resuelta» en dos filas sin esperar) leían el mismo archivo
    y el segundo borraba el cambio del primero, aunque los dos avisos decían «resuelta» */
 let COLA_EQ = Promise.resolve();
+const REV_PEND = new Set(); // Revisión 1215: claves de las máquinas con un ✓ o un ✕ guardándose o esperando turno
 function enColaEq(fn){ const p = COLA_EQ.then(fn); COLA_EQ = p.catch(() => {}); return p; }
+/* v2.71: cuando acaba un guardado en el Excel de equipos se repinta la pantalla. Si mientras tanto se ha empezado a escribir una deficiencia nueva (en otra fila, o arriba en «Deficiencias»),
+   lo escrito y las fotos elegidas se conservan, siempre que su formulario siga abierto después de repintar. Antes se vaciaba, y con los guardados en cola pasaría una vez por cada uno que acaba */
+function borradorND(){ const f = $("#form-def"); if(!f) return null; const q = id => f.querySelector("#" + id), cl = q("nd-clave"), t = q("nd-desc"), fo = q("nd-fotos"); if(!cl || !t) return null;
+  return { fija: cl.type === "hidden" ? cl.value : null, clave: cl.value, sec: (q("nd-sec") || {}).value, fecha: (q("nd-fecha") || {}).value, t1215: (q("nd-1215") || {}).value, desc: t.value, fotos: fo ? [...fo.files] : [], foco: document.activeElement === t ? [t.selectionStart, t.selectionEnd] : null }; }
+function restaurarND(b){ if(!b) return; try{ const f = $("#form-def"); if(!f) return; const q = id => f.querySelector("#" + id), cl = q("nd-clave"), t = q("nd-desc"); if(!cl || !t) return;
+    if((cl.type === "hidden" ? cl.value : null) !== b.fija) return; // es el formulario de otra máquina: ese empieza vacío
+    if(b.fija === null){ if(q("nd-sec")) q("nd-sec").value = b.sec || ""; cl.value = b.clave; } // la lista de máquinas ya sale con la sección elegida (ND_SEC)
+    if(q("nd-fecha") && b.fecha) q("nd-fecha").value = b.fecha; const s = q("nd-1215"); if(s && !s.disabled && b.t1215 != null) s.value = b.t1215; t.value = b.desc;
+    if(b.fotos.length && q("nd-fotos")){ const dt = new DataTransfer(); b.fotos.forEach(x => dt.items.add(x)); q("nd-fotos").files = dt.files; }
+    if(b.foco){ t.focus(); t.setSelectionRange(b.foco[0], b.foco[1]); }
+  }catch(e){} }
+function renderEq(){ const b = borradorND(); render(); restaurarND(b); } // repintar al acabar un guardado del Excel de equipos
 function escribirDeficiencias(lista){ return enColaEq(() => escribirDeficiencias1(lista)); }
 async function escribirDeficiencias1(lista){
   const handle = LOCAL.equipos; const file = await handle.getFile(); frenoCambioFuera(file, EQ && EQ.fechaArchivo, "El Excel de equipos"); const buf = await file.arrayBuffer();
@@ -1992,7 +2010,7 @@ async function editarDeficiencia1(id, celdas, msg){ // escribe una o varias celd
   let w; try{ w = await handle.createWritable(); }catch(e){ throw new Error("No se puede escribir en el Excel de equipos (¿abierto en Excel?): " + e.message); }
   await w.write(nuevoBuf); await w.close();
   const f2 = await handle.getFile(); await cargarEquiposDesde(await f2.arrayBuffer(), f2.name, new Date(f2.lastModified)); leidoBien("equipos");
-  aviso(msg(d)); render();
+  aviso(msg(d)); renderEq();
 }
 /* ---------- Revisión 1215: OK / deficiencia / NR por máquina, leyendo y escribiendo la hoja Revisiones ---------- */
 let EQ_ORD_INF = { col:"informe", dir:1 }; // orden de la lista de Informes 1215
@@ -5620,8 +5638,9 @@ function render(){
   cont.querySelectorAll("[data-ordlista]").forEach(t => t.onclick = () => { const k = t.dataset.ordlista; if(EQ_ORD_LISTA.col === k) EQ_ORD_LISTA.dir = -EQ_ORD_LISTA.dir; else EQ_ORD_LISTA = { col:k, dir:1 }; render(); });
   cont.querySelectorAll("[data-salto]").forEach(s => s.onclick = ev => { ev.stopPropagation(); const tr = s.closest("tr[data-equipo]"); const e = tr && EQ.equipos.find(x => x.clave === tr.dataset.equipo); if(!e) return; EQ_SUB = s.dataset.salto; EQ_FILTROS.q = e.pk || e.clave; if(EQ_SUB === "1215") EQ_FILTROS.visita = grupoEst(e); /* v2.70: «Revisión 1215» se abre en el cuadro de esa máquina (antes, en el último que se miró, y podía salir vacía) */ EQ_NUEVA_DEF = false; EQ_FORM = null; render(); });
   cont.querySelectorAll("button[data-rev-marca]").forEach(b => b.onclick = async ev => { ev.stopPropagation(); // Revisión 1215: se escribe en el Excel al pulsar
+    const clave = b.dataset.revMarca; if(REV_PEND.has(clave)) return; REV_PEND.add(clave); // v2.71: con los guardados en cola, el de esta máquina puede estar esperando cuando otro acaba y repinta
     const fila = b.closest("td"); fila.querySelectorAll("button").forEach(x => x.disabled = true); b.textContent = "…"; EQ_FORM = null;
-    try{ await marcarRevision(b.dataset.revMarca, b.dataset.estado); }catch(err){ aviso("No se ha guardado: " + err.message); } render(); });
+    try{ await marcarRevision(clave, b.dataset.estado); }catch(err){ aviso("No se ha guardado: " + err.message); } finally{ REV_PEND.delete(clave); } renderEq(); });
   cont.querySelectorAll("button[data-def-nueva]").forEach(b => b.onclick = e => { e.stopPropagation(); ND_FOTOS_CAM = []; EQ_FORM = { clave: b.dataset.defNueva, tipo:"def", desde1215:true }; render(); const t = $("#nd-desc"); if(t) t.focus(); });
   cont.querySelectorAll("button[data-def-editar]").forEach(b => b.onclick = e => { e.stopPropagation(); const ya = EQ_FORM && EQ_FORM.tipo === "editdef" && EQ_FORM.clave === b.dataset.defEditar && (EQ_FORM.id||null) === (b.dataset.defId||null); EQ_FORM = ya ? null : { clave: b.dataset.defEditar, tipo:"editdef", id: b.dataset.defId || null }; render(); });
   cont.querySelectorAll("button[data-ed-def-borrar]").forEach(b => b.onclick = async e => { e.stopPropagation(); const id = b.dataset.edDefBorrar; const d = EQ.deficiencias.find(x => x.id === id); if(!d) return; if(!confirm(`¿Borrar la deficiencia ${id} de ${d.maquina}?\n\n"${d.descripcion}"\n\nSe marca como borrada en el Excel y deja de verse en la app.`)) return; b.disabled = true; try{ await cambiarEstadoDeficiencia(id, "BORRADA"); if(EQ_FORM && EQ_FORM.tipo === "editdef" && (EQ_FORM.id === id || !defsAbiertas(EQ.equipos.find(x => x.clave === EQ_FORM.clave)||{clave:""}).length)){ EQ_FORM = null; render(); } }catch(err){ aviso("Error: " + err.message); b.disabled = false; } });
@@ -5662,8 +5681,8 @@ function render(){
   cont.querySelectorAll("[data-semdef]").forEach(b => b.onclick = () => { EQ_FILTROS.estado = EQ_FILTROS.estado === b.dataset.semdef ? "" : b.dataset.semdef; render(); });
   cont.querySelectorAll("button[data-def]").forEach(b => b.onclick = async e => { e.stopPropagation(); b.disabled = true; const id = b.dataset.def, nuevo = b.dataset.nuevo;
     try{ await cambiarEstadoDeficiencia(id, nuevo);
-      if(nuevo === "RESUELTA"){ EQ_CIERRE = id; if(EQ_FORM && EQ_FORM.tipo === "editdef" && EQ_FORM.id === id) EQ_FORM = null; render(); } // v2.71: al resolver sale el recuadro para la foto o el vídeo de cómo ha quedado (opcional)
-      else if(EQ_CIERRE === id){ EQ_CIERRE = null; render(); }
+      if(nuevo === "RESUELTA"){ EQ_CIERRE = id; if(EQ_FORM && EQ_FORM.tipo === "editdef" && EQ_FORM.id === id) EQ_FORM = null; renderEq(); } // v2.71: al resolver sale el recuadro para la foto o el vídeo de cómo ha quedado (opcional)
+      else if(EQ_CIERRE === id){ EQ_CIERRE = null; renderEq(); }
     }catch(err){ aviso("Error: " + err.message); b.disabled = false; } });
   // v2.71: foto o vídeo de cómo ha quedado una deficiencia resuelta
   cont.querySelectorAll("input[data-cierre-fich]").forEach(i => { i.onclick = ev => ev.stopPropagation(); i.onchange = () => anadirCierre(i.dataset.cierreFich, [...i.files], i); });
@@ -5672,7 +5691,7 @@ function render(){
   const bpar = $("#eq-parte"); if(bpar) bpar.onclick = () => parteMantenimiento();
   const bnd = $("#eq-nueva-def"); if(bnd) bnd.onclick = () => { EQ_NUEVA_DEF = true; render(); const t = $("#nd-desc"); if(t) t.focus(); };
   const ndc = $("#nd-cancelar"); if(ndc) ndc.onclick = () => { ND_FOTOS_CAM = []; EQ_NUEVA_DEF = false; EQ_FORM = null; render(); };
-  const ndg = $("#nd-guardar"); if(ndg) ndg.onclick = async () => { const descNueva = (($("#nd-desc")||{}).value||"").trim(); /* va también al historial de Revisiones */ ndg.disabled = true; ndg.textContent = "Guardando…"; let ok = false; try{ ok = await guardarNuevaDef(); }catch(err){ aviso("Error: " + err.message); } if(ok){ const f = EQ_FORM; EQ_NUEVA_DEF = false; EQ_FORM = null; if(f && f.desde1215 && f.clave){ try{ await marcarRevision(f.clave, "DEFICIENCIA", descNueva); }catch(err){ aviso("La deficiencia se ha guardado, pero no el estado: " + err.message); } } render(); } else { ndg.disabled = false; ndg.textContent = "Guardar deficiencia"; } }; // si no se guarda, el formulario se queda con lo escrito y las fotos
+  const ndg = $("#nd-guardar"); if(ndg) ndg.onclick = async () => { const descNueva = (($("#nd-desc")||{}).value||"").trim(); /* va también al historial de Revisiones */ ndg.disabled = true; ndg.textContent = "Guardando…"; let ok = false; const f = EQ_FORM; /* v2.71: el formulario que se guarda es el de ahora; si mientras se guarda se abre el de otra máquina (o se pulsa ✓ en otra), antes se marcaba esa otra */ try{ ok = await guardarNuevaDef(); }catch(err){ aviso("Error: " + err.message); } if(ok){ EQ_NUEVA_DEF = false; if(EQ_FORM === f) EQ_FORM = null; if(f && f.desde1215 && f.clave){ try{ await marcarRevision(f.clave, "DEFICIENCIA", descNueva); }catch(err){ aviso("La deficiencia se ha guardado, pero no el estado: " + err.message); } } renderEq(); } else { ndg.disabled = false; ndg.textContent = "Guardar deficiencia"; } }; // si no se guarda, el formulario se queda con lo escrito y las fotos
   const eqd = $("#eq-fdocs"); if(eqd) eqd.onchange = () => { EQ_FILTROS.docs = eqd.checked; render(); };
   const eqc = $("#eq-carpeta"); if(eqc) eqc.onclick = () => elegirCarpetaMaquinas().catch(avisoCarpeta);
   const eqx = $("#eq-excel"); if(eqx) eqx.onclick = () => { if(EXPORT_CURSOS) descargarXlsx(EXPORT_CURSOS.nombre, EXPORT_CURSOS.hoja, EXPORT_CURSOS.cabeceras, EXPORT_CURSOS.filas); };
