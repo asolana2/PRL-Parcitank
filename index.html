@@ -951,6 +951,8 @@ tr.fila-total td{font-weight:800; border-top:2px solid var(--line);}
 .cierre-hay img, .fe-cierre img{width:112px; height:84px; object-fit:cover; border-radius:8px; border:1px solid var(--line); display:block;}
 .cierre-enlace{display:inline-block; padding:.3rem .65rem; border:1px solid var(--line); border-radius:8px; background:#fff; text-decoration:none; font-size:.85rem; white-space:nowrap;}
 .fe-cierre{margin:.35rem 1rem 0 calc(3rem + 110px);} /* en la ficha, debajo del texto de la deficiencia resuelta (y sin su tono apagado) */
+/* pantalla estrecha (tableta en vertical): la tabla no cabe y hay que desplazarla a la derecha para ver los botones; el recuadro que sale debajo de una fila se queda a la vista */
+@media (max-width:1250px){ tr.fila-form .editor{position:sticky; left:.5rem; max-width:calc(100vw - 3.5rem); box-sizing:border-box; white-space:normal;} }
 </style>
 </head>
 <body>
@@ -1514,7 +1516,8 @@ async function contenidoMaquina(e){
   return { carpeta:c, subcarpetas, fotosDir, fotos, fotosDef, defArchivos, ce, manual, otros, revisiones, docs, faltan, completa: faltan.length === 0 };
 }
 const CACHE_MAQ = {}; // clave -> contenido (para no releer la carpeta cada vez)
-async function contenidoCache(e){ if(!MAQ_INDICE) return undefined; if(CACHE_MAQ[e.clave] === undefined){ const c = await contenidoMaquina(e); if(c !== null || MAQ_INDICE) CACHE_MAQ[e.clave] = c; } return CACHE_MAQ[e.clave]; }
+const VERS_MAQ = {}; // v2.71: sube cuando se guarda la foto o el vídeo de una deficiencia resuelta: una lectura de esa carpeta que empezó antes no vale, se repite
+async function contenidoCache(e){ if(!MAQ_INDICE) return undefined; if(CACHE_MAQ[e.clave] === undefined){ const v = VERS_MAQ[e.clave] || 0; const c = await contenidoMaquina(e); if((VERS_MAQ[e.clave] || 0) !== v) return contenidoCache(e); if(c !== null || MAQ_INDICE) CACHE_MAQ[e.clave] = c; } return CACHE_MAQ[e.clave]; }
 const URLS = new WeakMap(); // por archivo real, no por nombre (muchas máquinas tienen fotos con el mismo nombre)
 async function urlDe(fh){ const u = URLS.get(fh); if(u) return u; const f = await fh.getFile(); const url = URL.createObjectURL(f); URLS.set(fh, url); return url; }
 function chipEstadoEq(estado){ const m = { "OK":"c-ok", "OK CON REPARACIÓN":"c-menos1", "DEFICIENCIA":"c-def", "SIN REVISAR":"c-na" }; return `<span class="chip ${m[estado]||"c-na"}">${estado||"—"}</span>`; }
@@ -1695,15 +1698,17 @@ function vistaEquipos(){
     const cntE = k => todasD.filter(d => d.estado === k).length; const selE = EQ_FILTROS.estado;
     const abe = (cl, k, num, txt) => `<button class="${cl} ${selE===k?"sel":""}" data-semdef="${k}"><span class="num">${num}</span><span class="lbl">${txt}</span></button>`;
     html += `<div class="andon no-imprimir">${abe("a-rojo","ABIERTA",cntE("ABIERTA"),"abiertas")}${abe("a-amarillo","EN CURSO",cntE("EN CURSO"),"en curso")}${abe("a-verde","RESUELTA",cntE("RESUELTA"),"resueltas")}</div>`;
-    const T = tablaEq("defs", todasD.filter(d => (selE ? d.estado === selE : d.estado !== "RESUELTA") || (EQ_CIERRE && d.id === EQ_CIERRE)).map(defActual), columnasEq("defs")); // v2.71: la que se acaba de resolver sigue a la vista, con su recuadro, hasta pulsar «Cerrar»
-    const dC = EQ_CIERRE ? todasD.find(d => d.id === EQ_CIERRE && d.estado === "RESUELTA") : null, cierreEnFila = !!(dC && T.vis.some(d => d.id === dC.id)); // si un filtro de columna la esconde, el recuadro sale arriba
-    html += `<div class="bloque"><h3>Deficiencias <span class="cnt">${T.vis.length}</span><span class="der no-imprimir"><button class="btn2" id="eq-parte">Parte para mantenimiento</button>${LOCAL && LOCAL.equipos ? `<button class="btn2 naranja" id="eq-nueva-def">＋ Nueva deficiencia</button>` : ""}</span></h3>
+    const toca = d => selE ? d.estado === selE : d.estado !== "RESUELTA"; // las que salen con el cuadro elegido
+    const dC = EQ_CIERRE ? todasD.find(d => d.id === EQ_CIERRE && d.estado === "RESUELTA") : null, esDC = d => !!dC && d.id === dC.id && d.clave === dC.clave;
+    const T = tablaEq("defs", todasD.filter(d => toca(d) || esDC(d)).map(defActual), columnasEq("defs")); // v2.71: la que se acaba de resolver sigue a la vista, con su recuadro, hasta pulsar «Cerrar»
+    const cierreEnFila = T.vis.some(esDC); // si un filtro de columna la esconde, el recuadro sale arriba
+    html += `<div class="bloque"><h3>Deficiencias <span class="cnt">${T.vis.filter(toca).length}</span><span class="der no-imprimir"><button class="btn2" id="eq-parte">Parte para mantenimiento</button>${LOCAL && LOCAL.equipos ? `<button class="btn2 naranja" id="eq-nueva-def">＋ Nueva deficiencia</button>` : ""}</span></h3>
       ${EQ_NUEVA_DEF ? formNuevaDef(null) : ""}${dC && !cierreEnFila ? formCierreDef(dC, EQ.equipos.find(x => x.clave === dC.clave)) : ""}
       <table>${T.thead}<tbody>`;
     for(const d of T.vis){ const e = EQ.equipos.find(x => x.clave === d.clave);
-      html += `<tr class="${d.estado==="RESUELTA"?"baja":""} ${e?"fila-persona":""}" ${e?`data-equipo="${e.clave}"`:""}>${T.fila(d)}</tr>`;
+      html += `<tr class="${d.estado==="RESUELTA"?"baja":""} ${e?"fila-persona":""}${toca(d) ? "" : " no-imprimir"}" ${e?`data-equipo="${e.clave}"`:""}>${T.fila(d)}</tr>`; // la que solo sigue por su recuadro no sale en el papel ni cuenta arriba
       if(EQ_FORM && EQ_FORM.tipo === "editdef" && EQ_FORM.id === d.id && e) html += `<tr class="fila-form"><td colspan="8" style="padding:0">${formEditDefs(e, d.id)}</td></tr>`;
-      else if(dC && dC.id === d.id) html += `<tr class="fila-form"><td colspan="8" style="padding:0">${formCierreDef(dC, e)}</td></tr>`; }
+      else if(esDC(d)) html += `<tr class="fila-form"><td colspan="8" style="padding:0">${formCierreDef(dC, e)}</td></tr>`; }
     if(!T.vis.length) html += `<tr><td colspan="8" class="vacio">Sin deficiencias con ese filtro.</td></tr>`;
     html += `</tbody></table></div>`;
   }
@@ -1802,7 +1807,8 @@ const TXT_CIERRE = "Se guardan al elegirlos o al hacer la foto.";
 const esVideo = n => /\.(mp4|mov|m4v|webm|avi|mkv|3gp|wmv)$/i.test(n || "");
 const seVeComoFoto = n => /\.(jpe?g|png|webp|gif)$/i.test(n || ""); // .heic no: Edge no lo pinta
 const reCierre = id => new RegExp("^DEF\\s+" + String(id).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s+RESUELTA(?![A-Za-z0-9])", "i");
-function cierreDe(c, d){ if(!c || !d || !d.id) return []; const re = reCierre(d.id); return (c.defArchivos || []).filter(f => re.test(f.nombre)); }
+function cierreDe(c, d){ if(!c || !d || !d.id) return []; const re = reCierre(d.id); // sin los «.crswap» que deja Edge si se corta una copia; el 2 antes que el 10
+  return (c.defArchivos || []).filter(f => re.test(f.nombre) && !/\.crswap$/i.test(f.nombre)).sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { numeric:true })); }
 function guardarCierreDef(d, archivos){ const p = COLA_CIERRE.then(() => guardarCierreDef1(d, archivos)); COLA_CIERRE = p.catch(() => {}); return p; }
 async function guardarCierreDef1(d, archivos){ // archivos: File o Blob (los de la cámara no traen nombre)
   if(!CARPETA_MAQ) throw new Error("abre antes la carpeta MÁQUINAS (botón «Abrir la carpeta MÁQUINAS»).");
@@ -1814,13 +1820,18 @@ async function guardarCierreDef1(d, archivos){ // archivos: File o Blob (los de 
   const fecha = d.cierre ? ISO(d.cierre) : ISO(HOY_UTC); const guardados = []; let k = 0;
   try{
     for(const f of archivos){
+      if(!f.size) throw new Error(`«${f.name || "la foto"}» está vacío (0 bytes)`);
       const esV = esVideo(f.name) || /^video\//.test(f.type || ""); let blob = f, ext = ((f.name || "").match(/\.([A-Za-z0-9]{1,8})$/) || [])[1]; ext = ext ? ext.toLowerCase() : (esV ? "mp4" : "jpg");
       if(!esV){ const r = await reducirFoto(f); if(r !== f){ blob = r; ext = "jpg"; } } // si no se puede leer como imagen (.heic, un PDF…), se guarda tal cual
       let base; do { k++; base = `DEF ${d.id} RESUELTA ${fecha} ${k}`; } while(hay.has(base.toLowerCase()));
-      const fh = await dir.getFileHandle(`${base}.${ext}`, { create:true }); const w = await fh.createWritable(); await w.write(blob); await w.close(); hay.add(base.toLowerCase()); guardados.push(`${base}.${ext}`);
+      const nombre = `${base}.${ext}`; const fh = await dir.getFileHandle(nombre, { create:true }); let w = null;
+      try{ w = await fh.createWritable(); await w.write(blob); await w.close(); }
+      catch(err){ try{ if(w) await w.abort(); }catch(x){} try{ await dir.removeEntry(nombre); }catch(x){} throw err; } // que no quede un archivo vacío con ese nombre: la app lo enseñaría como guardado
+      hay.add(base.toLowerCase()); guardados.push(nombre);
     }
-  }catch(err){ throw new Error(`${err.message}${guardados.length ? ` (se ${guardados.length === 1 ? "ha guardado 1" : "han guardado " + guardados.length} de ${archivos.length})` : ""}`); }
-  finally{ delete CACHE_MAQ[e.clave]; }
+  }catch(err){ const faltan = archivos.slice(guardados.length).map(f => f.name || "la foto");
+    throw new Error(String(err.message || err).replace(/\.\s*$/, "") + (archivos.length > 1 ? `. Guardados: ${guardados.length} de ${archivos.length}. Sin guardar: ${faltan.join(", ")}` : "")); }
+  finally{ delete CACHE_MAQ[e.clave]; VERS_MAQ[e.clave] = (VERS_MAQ[e.clave] || 0) + 1; }
   return { guardados, carpeta: c.nombre + "/" + dir.name };
 }
 /* el trozo de formulario: lo que ya hay guardado y cómo añadir más. Sale en el recuadro de «Resuelta» y en el de «Editar» de una deficiencia resuelta */
@@ -1854,10 +1865,10 @@ async function rellenarCierres(){
     if(turno !== TURNO_CIERRES) return; if(!el.isConnected) continue; // se ha vuelto a pintar mientras se leía la carpeta
     if(!fs.length){ el.innerHTML = ""; continue; }
     const partes = []; let nv = 0; const variosV = fs.filter(f => esVideo(f.nombre)).length > 1;
-    for(const f of fs){ let u; try{ u = await urlDe(f.handle); }catch(err){ partes.push(`<span class="mini">${escEq(f.nombre)} (no se puede abrir)</span>`); continue; }
+    for(const f of fs){ let u; try{ if(!(await f.handle.getFile()).size) continue; /* uno de 0 bytes es el resto de una copia que se cortó: no se enseña */ u = await urlDe(f.handle); }catch(err){ partes.push(`<span class="mini">${escEq(f.nombre)} (no se puede abrir)</span>`); continue; }
       partes.push(seVeComoFoto(f.nombre) ? `<a href="${u}" target="_blank" rel="noopener" title="${escEq(f.nombre)}"><img src="${u}" alt=""></a>`
         : `<a href="${u}" target="_blank" rel="noopener" class="cierre-enlace" title="${escEq(f.nombre)}">${esVideo(f.nombre) ? `🎬 Vídeo${variosV ? " " + (++nv) : ""}` : "📎 " + escEq(f.nombre)}</a>`); }
-    if(turno !== TURNO_CIERRES) return; if(el.isConnected) el.innerHTML = (el.dataset.cierrePre ? `<span class="mini">${escEq(el.dataset.cierrePre)}</span>` : "") + partes.join("");
+    if(turno !== TURNO_CIERRES) return; if(el.isConnected) el.innerHTML = !partes.length ? "" : (el.dataset.cierrePre ? `<span class="mini">${escEq(el.dataset.cierrePre)}</span>` : "") + partes.join("");
   }
 }
 /* ---------- deficiencias nuevas: en el PC se escriben en el Excel de equipos; en el móvil se guardan y se envían ---------- */
@@ -1912,7 +1923,7 @@ async function abrirCamara(onFoto){ // abre la cámara en una ventana flotante; 
 }
 function cerrarCamara(){ if(CAM){ try{ CAM.stream.getTracks().forEach(t => t.stop()); }catch(e){} CAM.ov.remove(); CAM = null; } }
 async function reducirFoto(file, max=1400){
-  try{ const bmp = await createImageBitmap(file); const esc = Math.min(1, max/Math.max(bmp.width, bmp.height)); const cv = document.createElement("canvas"); cv.width = Math.round(bmp.width*esc); cv.height = Math.round(bmp.height*esc); cv.getContext("2d").drawImage(bmp, 0, 0, cv.width, cv.height); const blob = await new Promise(r => cv.toBlob(r, "image/jpeg", 0.85)); return blob || file; }catch(e){ return file; }
+  try{ const bmp = await createImageBitmap(file); const esc = Math.min(1, max/Math.max(bmp.width, bmp.height)); const cv = document.createElement("canvas"); cv.width = Math.round(bmp.width*esc); cv.height = Math.round(bmp.height*esc); const cx = cv.getContext("2d"); cx.fillStyle = "#fff"; cx.fillRect(0, 0, cv.width, cv.height); cx.drawImage(bmp, 0, 0, cv.width, cv.height); const blob = await new Promise(r => cv.toBlob(r, "image/jpeg", 0.85)); return blob || file; }catch(e){ return file; }
 }
 async function guardarNuevaDef(){
   const claveEl = $("#nd-clave"); const clave = (claveEl.value||"").trim(); const e = EQ.equipos.find(m => m.clave === clave); if(!e){ aviso("Elige la máquina."); return false; }
@@ -1926,7 +1937,12 @@ async function guardarNuevaDef(){
   return true;
 }
 /* escribir deficiencias (nuevas) en el Excel de equipos y sus fotos en la carpeta de la máquina */
-async function escribirDeficiencias(lista){
+/* v2.71: los guardados en el Excel de equipos van de uno en uno. Dos a la vez (por ejemplo, «Resuelta» en dos filas sin esperar) leían el mismo archivo
+   y el segundo borraba el cambio del primero, aunque los dos avisos decían «resuelta» */
+let COLA_EQ = Promise.resolve();
+function enColaEq(fn){ const p = COLA_EQ.then(fn); COLA_EQ = p.catch(() => {}); return p; }
+function escribirDeficiencias(lista){ return enColaEq(() => escribirDeficiencias1(lista)); }
+async function escribirDeficiencias1(lista){
   const handle = LOCAL.equipos; const file = await handle.getFile(); frenoCambioFuera(file, EQ && EQ.fechaArchivo, "El Excel de equipos"); const buf = await file.arrayBuffer();
   const libro = await cargarMaestro(buf); const hoja = await libro.hoja("Deficiencias"); if(!hoja) throw new Error("El Excel de equipos no tiene la hoja Deficiencias");
   const cab = CAB(hoja); const col = n => colEq(cab, n); const iId = col("ID"); const ids = new Set(); let ultima = 1, maxNum = 0;
@@ -1960,7 +1976,8 @@ async function cambiarEstadoDeficiencia(id, nuevo){
 async function cambiarTextoDeficiencia(id, texto){
   return editarDeficiencia(id, col => [{ col: col("DESCRIPCIÓN"), valor: texto }], d => `${d.maquina}: deficiencia actualizada.`);
 }
-async function editarDeficiencia(id, celdas, msg){ // escribe una o varias celdas de la fila de esa deficiencia en la hoja Deficiencias
+function editarDeficiencia(id, celdas, msg){ return enColaEq(() => editarDeficiencia1(id, celdas, msg)); }
+async function editarDeficiencia1(id, celdas, msg){ // escribe una o varias celdas de la fila de esa deficiencia en la hoja Deficiencias
   if(!LOCAL || !LOCAL.equipos) throw new Error("Sin acceso al Excel de equipos");
   const d = EQ.deficiencias.find(x => x.id === id); if(!d) return;
   const handle = LOCAL.equipos; const file = await handle.getFile(); frenoCambioFuera(file, EQ && EQ.fechaArchivo, "El Excel de equipos"); const buf = await file.arrayBuffer();
@@ -2457,7 +2474,8 @@ async function copiaSeguridadEquipos(handle, bytes){ await copiaSeguridad(handle
 function revisiones1215(e){ return EQ.revisiones.filter(r => r.clave === e.clave && /1215/.test(r.tipo)); }
 /* escritura genérica en el Excel de equipos: prepara(libro) devuelve { Equipos:[{fila,col,valor}], Revisiones:[…], Deficiencias:[…] }
    con las filas y columnas calculadas sobre el archivo tal como está ahora; después se relee el archivo nuevo y solo pueden haber cambiado esas celdas */
-async function escribirEquipos(prepara){
+function escribirEquipos(prepara){ return enColaEq(() => escribirEquipos1(prepara)); } // v2.71: en la misma cola que las deficiencias (es el mismo Excel)
+async function escribirEquipos1(prepara){
   if(!LOCAL || !LOCAL.equipos) throw new Error("Sin acceso al Excel de equipos");
   const handle = LOCAL.equipos; const file = await handle.getFile(); frenoCambioFuera(file, EQ && EQ.fechaArchivo, "El Excel de equipos"); const buf = await file.arrayBuffer();
   const libro = await cargarMaestro(buf); const porHoja = await prepara(libro); const reemplazos = {}; const hojas = [];
