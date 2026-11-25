@@ -958,6 +958,7 @@ body:has(#camara) .toast{z-index:10000; bottom:auto !important; top:1.2rem;}
 /* ===== v2.73 ===== */
 /* el número de versión (cabecera y pantalla de inicio): al pulsarlo, «Qué ha cambiado» */
 .ver-app{font:inherit; font-size:.7rem; font-weight:400; color:inherit; background:none; border:0; padding:0 .1rem; cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px;}
+header button.ver-app{background:none !important; border:0 !important; border-radius:0 !important; box-shadow:none !important; font-weight:400 !important; color:#C9D8F0 !important; transform:none !important; padding:0 .1rem !important; font-size:.7rem !important;}
 .ver-inicio{margin:-1rem 0 1.1rem; color:var(--muted);} .ver-inicio .ver-app{font-size:.8rem;}
 #novedades{position:fixed; inset:0; background:rgba(20,30,50,.45); z-index:10001; display:flex; align-items:center; justify-content:center; padding:1rem;}
 #novedades .caja{background:#fff; border-radius:12px; max-width:40rem; width:100%; max-height:85vh; overflow:auto; padding:1.1rem 1.3rem; box-shadow:0 10px 40px rgba(0,0,0,.25); color:var(--ink); text-align:left;}
@@ -5012,13 +5013,15 @@ function resumenPropuestaUM(cfg){
   const nuevos = plan.reduce((a,u) => a + u.fijos.filter((f,i) => !f && u.niveles[i] === 0).length, 0), adelantados = plan.reduce((a,u) => a + u.fijos.filter((f,i) => !f && u.niveles[i] === 2).length, 0);
   const otras = [...new Set((P.yaCitados||[]).map(p => ISO(p.fechaUM)))].sort().map(d => fmtFecha(new Date(d + "T00:00:00Z")));
   const aparte = (P.citaAparte||[]).length, noToca = P.enPool - yaEnPlan - (P.yaCitados||[]).length - P.total;
-  const fuera = [P.fuera.baja && `${P.fuera.baja} de baja`, P.fuera.via && `${P.fuera.via} con Seprevilla o Quirón`, P.fuera.na && `${P.fuera.na} con NA`].filter(Boolean);
+  const vias = (P.viasFuera||[]).map(v => v.charAt(0) + v.slice(1).toLowerCase()).join(" o ") || "otra vía";
+  const fuera = [P.fuera.baja && `${P.fuera.baja} de baja`, P.fuera.via && `${P.fuera.via} con ${vias}`, P.fuera.na && `${P.fuera.na} con NA`].filter(Boolean);
+  const tienen = x => x === 1 ? "tiene" : "tienen";
   const l1 = `Propuesta ${cfg.anio}: ${n(plan.length)} unidades móviles. De ${n(P.fabrica)} personas de fábrica entran ${n(P.enPool)}${fuera.length ? ` (no entran: ${fuera.join(", ").replace(/, ([^,]*)$/, " y $1")})` : ""}.`;
   const partes = [];
-  if(yaEnPlan) partes.push(`${n(yaEnPlan)} ya tienen su cita en estas UM (🔒)`);
-  if((P.yaCitados||[]).length) partes.push(`${n(P.yaCitados.length)} ya tienen cita en otra fecha de ${cfg.anio} (${otras.slice(0,4).join(", ")}${otras.length > 4 ? "…" : ""}) y no se tocan`);
-  partes.push(`${n(P.total)} faltaban por colocar: ${n(nuevos)} colocados, <b style="color:${sinPlaza.length?'var(--rojo)':'var(--verde)'}">${sinPlaza.length}</b> sin plaza${sinPlaza.length?` (harían falta ${Math.ceil(sinPlaza.length/cfg.plazas)} UM más, o cita en Quirón/Seprevilla)`:''}${aparte ? ` y <b style="color:var(--rojo)">${aparte}</b> con cita aparte (Seprevilla/Quirón)` : ""}`);
-  if(noToca > 0) partes.push(`${noToca} no les toca hasta ${cfg.anio + 1}${adelantados ? ` (${n(adelantados)} de ellos, adelantados para completar UM)` : ""}`);
+  if(yaEnPlan) partes.push(`${n(yaEnPlan)} ya ${tienen(yaEnPlan)} su cita en estas UM (🔒)`);
+  if((P.yaCitados||[]).length) partes.push(`${n(P.yaCitados.length)} ya ${tienen(P.yaCitados.length)} cita en otra fecha de ${cfg.anio} (${otras.slice(0,4).join(", ")}${otras.length > 4 ? "…" : ""}) y no se tocan`);
+  if(!P.total) partes.push(`no faltaba nadie por colocar`); else partes.push(`${n(P.total)} faltaban por colocar: ${n(nuevos)} colocados, <b style="color:${sinPlaza.length?'var(--rojo)':'var(--verde)'}">${sinPlaza.length}</b> sin plaza${sinPlaza.length?` (harían falta ${Math.ceil(sinPlaza.length/cfg.plazas)} UM más, o cita en Quirón/Seprevilla)`:''}${aparte ? ` y <b style="color:var(--rojo)">${aparte}</b> con cita aparte (Seprevilla/Quirón)` : ""}`);
+  if(noToca > 0) partes.push(`${noToca} no ${noToca === 1 ? "le" : "les"} toca hasta ${cfg.anio + 1}${adelantados ? ` (${n(adelantados)} de ellos, adelantados para completar UM)` : ""}`);
   const cortas = plan.filter(u => u.personas.length < cfg.plazas).length;
   return `${l1}<br>De esas ${P.enPool}: ${partes.join(" · ")}.${cortas ? `<br><b style="color:var(--rojo)">${cortas} UM por debajo de ${cfg.plazas}</b> (último recurso: no hay más gente que venza en sus 3 meses).` : ""}`;
 }
@@ -5045,7 +5048,8 @@ function proponerUM(cfg){
   const citadoEnAnio = p => p.fechaUM && p.fechaUM >= ini && p.fechaUM <= fin;
   let rest = pool().filter(p => !citadoEnAnio(p)).map(p => Object.assign({ p }, proyectar(p)))
     .sort((a,b) => (a.due - b.due) || (a.p.claveNombre<b.p.claveNombre?-1:1));
-  const fijados = pool().filter(citadoEnAnio).map(p => ({ p, due: p.fechaUM, urg:false, desdeCita:false, fija:true }));
+  const dia0 = d => new Date(ISO(d) + "T00:00:00Z"); // v2.73: una FECHA CITA con hora cuenta para la UM de ese día
+  const fijados = pool().filter(citadoEnAnio).map(p => ({ p, due: dia0(p.fechaUM), urg:false, desdeCita:false, fija:true }));
   // "del año": vencen dentro del año o en enero del siguiente, porque nada más volver de Navidad no se hace UM
   const primeraSig = new Date(Date.UTC(cfg.anio+1, 1, 1));
   const delAnio = r => r.due < primeraSig;
@@ -5142,8 +5146,9 @@ function proponerUM(cfg){
   citaAparte.sort((a,b) => a.due - b.due);
   // v2.73: de dónde sale la cifra: toda la gente de fábrica y, de los que no entran, por qué
   const enPool = new Set(pool()), fabrica = DATOS.personas.filter(p => p.personal !== "OBRA"), fuera = { baja:0, via:0, na:0 };
-  for(const p of fabrica){ if(enPool.has(p)) continue; if(!cfg.bajas && p.baja) fuera.baja++; else if(!(p.via === "" || p.via === "UM")) fuera.via++; else if(p.aptoEstado === "na") fuera.na++; }
-  return { plan, sinPlaza, total, yaCitados: yaCitados.filter(p => !fechasUM.some(f => f.getTime()===p.fechaUM.getTime())), citaAparte, fabrica: fabrica.length, enPool: enPool.size, fuera };
+  const viasFuera = new Set();
+  for(const p of fabrica){ if(enPool.has(p)) continue; if(!cfg.bajas && p.baja) fuera.baja++; else if(!(p.via === "" || p.via === "UM")){ fuera.via++; viasFuera.add(p.via); } else if(p.aptoEstado === "na") fuera.na++; }
+  return { plan, sinPlaza, total, yaCitados: yaCitados.filter(p => !fechasUM.some(f => f.getTime()===dia0(p.fechaUM).getTime())), citaAparte, fabrica: fabrica.length, enPool: enPool.size, fuera, viasFuera: [...viasFuera].sort() };
 }
 function vistaPlanUM(){
   const cfg = PLAN_CFG;
